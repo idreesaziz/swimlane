@@ -1,0 +1,38 @@
+{
+  "composition": {
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "duration": 10,
+    "output_format": "mov"
+  },
+  "sources": {
+    "background": "./examples/media/background.mp4",
+    "logo_overlay": "./examples/media/logo_transparent.png"
+  },
+  "tracks": [
+    {
+      "id": 1,
+      "clips": [
+        {
+          "source_id": "background",
+          "start_time": 0, "source_end": 10
+        }
+      ]
+    },
+    {
+      "id": 0,
+      "clips": [
+        {
+          "source_id": "logo_overlay",
+          "start_time": 1, "duration": 8,
+          "transform": {
+            "scale": 0.2,
+            "position": [0, 0],
+            "anchor": [0, 0]
+          }
+        }
+      ]
+    }
+  ]
+}
