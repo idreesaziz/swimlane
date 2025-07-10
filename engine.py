@@ -47,6 +47,15 @@ class SwimlanesEngine:
         comp.setdefault('output_format', 'mp4')
         comp.setdefault('background_color', 'black')
         
+        # Validate that all source files exist
+        missing_files = []
+        for source_id, source_path in data['sources'].items():
+            if not os.path.exists(source_path):
+                missing_files.append(f"'{source_id}': {source_path}")
+        
+        if missing_files:
+            raise SwmlError(f"The following source files do not exist:\n" + "\n".join(missing_files))
+        
         self.swml_data = data
         return data
     
@@ -116,7 +125,6 @@ class SwimlanesEngine:
         )
 
         all_inputs = []
-        input_map = {}
         sorted_tracks = sorted(tracks, key=lambda t: t['id'], reverse=True)
         
         for track in sorted_tracks:
@@ -124,12 +132,11 @@ class SwimlanesEngine:
                 source_id = clip['source_id']
                 source_path = sources[source_id]
                 
-                if source_id not in input_map:
-                    clip_input = ffmpeg.input(source_path)
-                    all_inputs.append(clip_input)
-                    input_map[source_id] = clip_input
+                # Create a separate input stream for each clip to avoid FFmpeg stream reuse issues
+                clip_input = ffmpeg.input(source_path)
+                all_inputs.append(clip_input)
                 
-                clip_stream = input_map[source_id]['v']
+                clip_stream = clip_input['v']
                 start_time = clip.get('start_time', 0)
                 
                 # Handle timing for images vs. videos
