@@ -25,9 +25,11 @@ python -m venv venv
 # Windows: .\\venv\\Scripts\\activate
 # macOS/Linux: source venv/bin/activate
 pip install -r requirements.txt
+```
 
 **3. Run an Example**
 Create your media files inside examples/media/. Then run the engine:
 
 ```bash
 python engine.py examples/composition.swml output.mov
+```
