@@ -1,5 +1,3 @@
-# swml/engine.py
-
 import json
 import sys
 import ffmpeg
@@ -15,10 +13,12 @@ def get_media_dimensions(filepath):
         probe = ffmpeg.probe(filepath)
         video_stream = next((s for s in probe['streams'] if s['codec_type'] == 'video'), None)
         if video_stream:
-            return video_stream['width'], video_stream['height']
+            width = video_stream.get('width')
+            height = video_stream.get('height')
+            return width, height
     except ffmpeg.Error as e:
-        print(f"Error probing {filepath}: {e.stderr}", file=sys.stderr)
-    return None, None # Return None if not a video or error occurs
+        print(f"Error probing {filepath}: {e.stderr.decode()}", file=sys.stderr)
+    return None, None
 
 def calculate_pixel_coords(transform, comp_dims, source_dims):
     """Translates a SWML transform object into final pixel coordinates and size."""
@@ -27,6 +27,8 @@ def calculate_pixel_coords(transform, comp_dims, source_dims):
     base_size = transform.get('size')
     if base_size is None:
         base_w, base_h = source_dims
+        if base_w is None or base_h is None:
+             base_w, base_h = comp_w, comp_h
     else:
         base_w, base_h = base_size
 
@@ -55,55 +57,49 @@ def render_swml(swml_data, output_path):
     """The main rendering function."""
     comp = swml_data['composition']
     sources = swml_data['sources']
-    tracks = sorted(swml_data['tracks'], key=lambda t: t['id'], reverse=True)
+    tracks = sorted(swml_data.get('tracks', []), key=lambda t: t['id'], reverse=True)
 
-    # --- Pre-computation Step: Probe all sources ---
     source_dims = {
         source_id: get_media_dimensions(path) for source_id, path in sources.items()
     }
 
-    # --- Setup for transparency ---
-    # Determine pixel format based on if transparency is needed.
     output_format = comp.get('output_format', 'mp4').lower()
-    if output_format == 'mov' or output_format == 'webm':
+    if output_format in ['mov', 'webm']:
         PIXEL_FORMAT_ALPHA = 'yuva444p'
         vcodec = 'qtrle' if output_format == 'mov' else 'libvpx-vp9'
-        print("Transparency mode enabled. Outputting to .mov/.webm with alpha channel.")
     else:
-        PIXEL_FORMAT_ALPHA = 'yuv420p' # Standard format for MP4
+        PIXEL_FORMAT_ALPHA = 'yuv420p'
         vcodec = 'libx264'
-        print("Standard mode enabled. Outputting to .mp4 (no alpha).")
 
-    # --- Create the base canvas ---
-    canvas_color = comp.get('background_color', 'black')
+    canvas_color = comp.get('background_color', 'black@0.0' if PIXEL_FORMAT_ALPHA == 'yuva444p' else 'black')
     base_canvas = ffmpeg.input(
         f'color=c={canvas_color}:s={comp["width"]}x{comp["height"]}',
         f='lavfi',
-        t=comp['duration']
+        t=comp['duration'],
+        r=comp['fps']
     ).filter('format', pix_fmts=PIXEL_FORMAT_ALPHA)
 
-    # --- Process Tracks and Composite Layers ---
-    # For v1, we will simplify and not implement cross-transitions yet, focusing on layering.
-    # We will overlay each clip individually.
-    
     final_video = base_canvas
     
     for track in tracks:
-        for clip in track['clips']:
+        for clip in track.get('clips', []):
             source_id = clip['source_id']
             filepath = sources[source_id]
-            
-            # Create the input stream and immediately set its format
-            stream = ffmpeg.input(filepath).filter('format', pix_fmts=PIXEL_FORMAT_ALPHA)
-            
-            # Handle timing (trim/duration)
-            if 'source_end' in clip:
-                stream = stream.trim(start=clip.get('source_start', 0), end=clip['source_end']).setpts('PTS-STARTPTS')
-            elif 'duration' in clip:
-                 # Loop is a trick for still images
-                stream = stream.loop(1, size=1).setpts('PTS-STARTPTS').trim(duration=clip['duration'])
+            is_image = 'duration' in clip
 
-            # Handle transform
+            if is_image:
+                stream = ffmpeg.input(filepath, loop=1, r=comp['fps'])
+            else:
+                stream = ffmpeg.input(filepath)
+            
+            stream = stream.filter('format', pix_fmts=PIXEL_FORMAT_ALPHA)
+            
+            if is_image:
+                stream = stream.setpts('PTS-STARTPTS').trim(duration=clip['duration'])
+            else:
+                if 'source_end' in clip:
+                    stream = stream.trim(start=clip.get('source_start', 0), end=clip['source_end']).setpts('PTS-STARTPTS')
+
             if 'transform' in clip:
                 x, y, w, h = calculate_pixel_coords(
                     clip['transform'],
@@ -111,33 +107,42 @@ def render_swml(swml_data, output_path):
                     source_dims[source_id]
                 )
                 stream = stream.filter('scale', w, h)
-            else: # Fullscreen if no transform
+            else:
                 x, y = 0, 0
-
-            # Composite this clip onto the main video
+            
+            start = clip.get('start_time', 0)
             final_video = final_video.overlay(
                 stream,
                 x=x,
                 y=y,
-                enable=f"between(t,{clip['start_time']},{comp['duration']})" # Simple enable logic for v1
+                enable=f"between(t,{start},{comp['duration']})"
             )
 
     # --- Execute Render ---
     print(f"Rendering video to {output_path}...")
     try:
-        final_video.output(
+        output_stream = final_video.output(
             output_path,
             vcodec=vcodec,
-            pix_fmt=PIXEL_FORMAT_ALPHA, # This must match the stream format
+            pix_fmt=PIXEL_FORMAT_ALPHA,
             r=comp['fps'],
             t=comp['duration']
-        ).overwrite_output().run(capture_stdout=True, capture_stderr=True)
+        ).overwrite_output()
+        
+        # To see the command, uncomment the next two lines
+        # args = output_stream.get_args()
+        # print("ffmpeg " + " ".join(args))
+
+        output_stream.run(capture_stdout=True, capture_stderr=True)
+        
         print("Render complete!")
     except ffmpeg.Error as e:
-        print("FFmpeg Error:", file=sys.stderr)
+        print("\n[ERROR] An FFmpeg error occurred:", file=sys.stderr)
         print(e.stderr.decode(), file=sys.stderr)
         sys.exit(1)
-
+    except Exception as e:
+        print(f"\n[ERROR] A Python error occurred: {e}", file=sys.stderr)
+        sys.exit(1)
 
 # ----------------- #
 #  MAIN EXECUTION   #
@@ -155,6 +160,7 @@ if __name__ == "__main__":
         print(f"Error: Input file not found at '{input_file}'", file=sys.stderr)
         sys.exit(1)
 
+    print(f"Loading SWML spec from: {input_file}")
     with open(input_file, 'r') as f:
         swml_spec = json.load(f)
 
