@@ -245,37 +245,34 @@ class SwimlanesEngine:
         return stream
 
     def _calculate_clip_timing(self, clip: Dict[str, Any], next_clip: Optional[Dict[str, Any]] = None, 
-                              prev_clip: Optional[Dict[str, Any]] = None) -> Tuple[float, float, bool]:
-        """Calculate effective start time and duration for a clip, considering cross-transitions."""
+                              prev_clip: Optional[Dict[str, Any]] = None) -> Tuple[float, float, bool, float]:
+        """Calculate effective start time and duration for a clip, considering cross-transitions.
+        
+        Returns:
+            (effective_start, base_duration, is_cross_transition, render_duration)
+            - effective_start: When the clip starts rendering (may be earlier for cross-fade in)
+            - base_duration: Original clip duration (unchanged)
+            - is_cross_transition: Whether this clip participates in cross-transitions
+            - render_duration: How long to render the clip (may be longer for overlaps)
+        """
         start_time = clip.get('start_time', 0)
         
         # Get the base duration for this clip
         if 'duration' in clip:
-            duration = clip['duration']
+            base_duration = clip['duration']
         elif 'source_end' in clip and 'source_start' in clip:
-            duration = clip['source_end'] - clip['source_start']
+            base_duration = clip['source_end'] - clip['source_start']
         elif 'source_end' in clip:
-            duration = clip['source_end']  # Assuming source_start defaults to 0
+            base_duration = clip['source_end']  # Assuming source_start defaults to 0
         else:
             # For images or when no duration specified, we'll set this later
-            duration = 0
+            base_duration = 0
         
+        effective_start = start_time
+        render_duration = base_duration
         is_cross_transition = False
         
-        # Check for cross-transitions with next clip (ONLY if explicitly marked)
-        if (next_clip and 
-            clip.get('cross', False) and 
-            next_clip.get('cross', False) and
-            abs((start_time + duration) - next_clip.get('start_time', 0)) < 0.001):  # Adjacent clips
-            
-            transition_out = clip.get('transition_out')
-            if transition_out and transition_out.get('type') == 'fade':
-                transition_duration = transition_out.get('duration', 0)
-                # Extend duration to overlap with next clip
-                duration += transition_duration
-                is_cross_transition = True
-        
-        # Check for cross-transitions with previous clip (ONLY if explicitly marked)
+        # Check for cross-fade IN (with previous clip)
         if (prev_clip and 
             clip.get('cross', False) and 
             prev_clip.get('cross', False)):
@@ -292,14 +289,25 @@ class SwimlanesEngine:
                 transition_in = clip.get('transition_in')
                 if transition_in and transition_in.get('type') == 'fade':
                     transition_duration = transition_in.get('duration', 0)
-                    # Start earlier to overlap with previous clip
-                    start_time -= transition_duration
-                    duration += transition_duration  # Extend to maintain end time
+                    # Start rendering earlier to create overlap, but don't change logical timing
+                    effective_start = start_time - transition_duration
+                    render_duration = base_duration + transition_duration
                     is_cross_transition = True
         
-        # Standalone transitions do not affect timing calculations here.
-        # The fade effect itself is handled during stream processing.
-        return start_time, duration, is_cross_transition
+        # Check for cross-fade OUT (with next clip)
+        if (next_clip and 
+            clip.get('cross', False) and 
+            next_clip.get('cross', False) and
+            abs((start_time + base_duration) - next_clip.get('start_time', 0)) < 0.001):  # Adjacent clips
+            
+            transition_out = clip.get('transition_out')
+            if transition_out and transition_out.get('type') == 'fade':
+                transition_duration = transition_out.get('duration', 0)
+                # Extend rendering duration to create overlap, but don't change logical end time
+                render_duration = base_duration + transition_duration
+                is_cross_transition = True
+        
+        return effective_start, base_duration, is_cross_transition, render_duration
     
     def _build_video_graph(self):
         """Builds the complex FFmpeg filter graph for video tracks."""
@@ -352,23 +360,25 @@ class SwimlanesEngine:
                 # Calculate timing considering cross-transitions
                 next_clip = sorted_clips[i + 1] if i + 1 < len(sorted_clips) else None
                 prev_clip = sorted_clips[i - 1] if i > 0 else None
-                effective_start, effective_duration, is_cross_transition = self._calculate_clip_timing(clip, next_clip, prev_clip)
+                effective_start, base_duration, is_cross_transition, render_duration = self._calculate_clip_timing(clip, next_clip, prev_clip)
                 
                 # For images without duration specified, use remaining composition time or default
-                if effective_duration == 0:
+                if base_duration == 0:
                     if 'duration' in clip:
-                        effective_duration = clip['duration']
+                        base_duration = clip['duration']
+                        render_duration = base_duration
                     else:
                         # Default duration for images is remaining time from start
-                        effective_duration = comp['duration'] - effective_start
+                        base_duration = comp['duration'] - clip.get('start_time', 0)
+                        render_duration = base_duration
                 
                 # Handle timing for images vs. videos
                 is_image = source_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
                 if is_image:
                     # For images, handle sizing with padding/cropping instead of scaling
-                    image_duration = effective_duration
+                    image_duration = render_duration
                     transform = self.calculate_clip_transform(clip, source_path)
-                    comp = self.swml_data['composition']
+                    comp_data = self.swml_data['composition']
                     
                     # Create the base image stream
                     clip_stream = clip_stream.filter('loop', loop=-1, size=1, start=0)
@@ -377,8 +387,8 @@ class SwimlanesEngine:
                     # Handle image sizing - pad if too small, crop if too large
                     source_width = transform['source_width']
                     source_height = transform['source_height']
-                    target_width = comp['width']
-                    target_height = comp['height']
+                    target_width = comp_data['width']
+                    target_height = comp_data['height']
                     
                     if source_width < target_width or source_height < target_height:
                         # Pad the image to canvas size
@@ -410,12 +420,17 @@ class SwimlanesEngine:
                     transform = self.calculate_clip_transform(clip, source_path)
                     clip_stream = clip_stream.filter('scale', transform['width'], transform['height'])
                 
-                # Apply transitions AFTER sizing and initial timing setup
-                original_duration = clip.get('duration', effective_duration)
-                clip_stream = self._apply_clip_transitions(clip_stream, clip, original_duration, is_cross_transition)
+                # Apply transitions using the BASE duration (not render duration)
+                # This ensures fade timings are calculated based on the user's intended clip length
+                clip_stream = self._apply_clip_transitions(clip_stream, clip, base_duration, is_cross_transition)
 
-                # Reset timestamps to start from 0, then shift to the clip's effective start time.
-                clip_stream = clip_stream.filter('setpts', f'PTS-STARTPTS+{effective_start}/TB')
+                # For cross-transitions, we need to handle the timeline positioning carefully
+                if is_cross_transition:
+                    # Use effective_start (which may be earlier) for positioning
+                    clip_stream = clip_stream.filter('setpts', f'PTS-STARTPTS+{effective_start}/TB')
+                else:
+                    # Use the original start time for regular clips
+                    clip_stream = clip_stream.filter('setpts', f'PTS-STARTPTS+{clip.get("start_time", 0)}/TB')
 
                 clip_stream = clip_stream.filter('format', 'rgba')
                 
