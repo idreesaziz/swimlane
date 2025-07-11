@@ -116,8 +116,7 @@ class SwimlanesEngine:
         sources = self.swml_data['sources']
         tracks = self.swml_data['tracks']
 
-        # Create background color source - FIXED: Use proper ffmpeg-python syntax
-        # For source filters, we can use the direct approach
+        # Create background color source
         current_stream = (
             ffmpeg
             .input(f"color={comp['background_color']}:size={comp['width']}x{comp['height']}:duration={comp['duration']}:rate={comp['fps']}", f='lavfi')
@@ -125,18 +124,46 @@ class SwimlanesEngine:
         )
 
         all_inputs = []
+        # Group clips by source to handle splitting properly
+        source_clips = {}
         sorted_tracks = sorted(tracks, key=lambda t: t['id'], reverse=True)
+        
+        # First, collect all clips grouped by source
+        for track in sorted_tracks:
+            for clip in track['clips']:
+                source_id = clip['source_id']
+                if source_id not in source_clips:
+                    source_clips[source_id] = []
+                source_clips[source_id].append(clip)
+        
+        # Create inputs and split streams for each source
+        source_streams = {}
+        for source_id, clips in source_clips.items():
+            source_path = sources[source_id]
+            source_input = ffmpeg.input(source_path)
+            all_inputs.append(source_input)
+            
+            if len(clips) > 1:
+                # Multiple clips use this source, so we need to split
+                split_stream = source_input['v'].filter_multi_output("split", len(clips))
+                source_streams[source_id] = [split_stream.stream(i) for i in range(len(clips))]
+            else:
+                # Only one clip uses this source
+                source_streams[source_id] = [source_input['v']]
+        
+        # Now process each clip with its dedicated stream
+        source_clip_counters = {source_id: 0 for source_id in source_clips.keys()}
         
         for track in sorted_tracks:
             for clip in track['clips']:
                 source_id = clip['source_id']
                 source_path = sources[source_id]
                 
-                # Create a separate input stream for each clip to avoid FFmpeg stream reuse issues
-                clip_input = ffmpeg.input(source_path)
-                all_inputs.append(clip_input)
+                # Get the dedicated stream for this clip
+                clip_index = source_clip_counters[source_id]
+                clip_stream = source_streams[source_id][clip_index]
+                source_clip_counters[source_id] += 1
                 
-                clip_stream = clip_input['v']
                 start_time = clip.get('start_time', 0)
                 
                 # Handle timing for images vs. videos
