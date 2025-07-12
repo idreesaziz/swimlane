@@ -20,7 +20,7 @@
         {
           "source_id": "background_vid",
           "start_time": 1,
-          "duration": 6,
+          "end_time": 7,
           "transform": { "anchor": [0, 0], "position": [0, 0], "scale": 1 },
           "transition_out": {
             "type": "fade",
@@ -35,7 +35,7 @@
         {
           "source_id": "pic",
           "start_time": 7,
-          "duration": 8,
+          "end_time": 15,
           "transform": { "anchor": [0, 0], "position": [0, 0], "size":[1280, 720] },
           "transition_in": {
             "type": "fade",
@@ -52,7 +52,7 @@
       "id": 100,
       "type": "audio",
       "clips": [
-        { "source_id": "background_vid", "start_time": 0, "volume": 1.0 }
+        { "source_id": "background_vid", "start_time": 0, "end_time": 15, "volume": 1.0 }
       ]
     },
         {
@@ -62,7 +62,7 @@
         {
           "source_id": "t_vid",
           "start_time": 1,
-          "duration": 7,
+          "end_time": 8,
           "transform": { "anchor": [0, 0], "position": [0, 0], "scale": 1, "size": [1280, 720] },
           "transition_out": {
             "type": "fade",
@@ -79,7 +79,7 @@
       "id": 101,
       "type": "audio",
       "clips": [
-        { "source_id": "background_vid", "start_time": 0.5, "volume": 0.4, "fade_out": 4.0 }
+        { "source_id": "background_vid", "start_time": 0.5, "end_time": 4.5, "volume": 0.4, "fade_out": 4.0 }
       ]
     }
   ]

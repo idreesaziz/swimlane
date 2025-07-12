@@ -53,8 +53,7 @@ class SwimlanesEngine:
                 
                 # Check if clips are adjacent
                 current_start = current_clip.get('start_time', 0)
-                current_duration = current_clip.get('duration', 0)
-                current_end = current_start + current_duration
+                current_end = current_clip.get('end_time', current_start)
                 next_start = next_clip.get('start_time', 0)
                 
                 # If clips are adjacent (no gap)
@@ -95,12 +94,14 @@ class SwimlanesEngine:
                         
                         # Validate transition duration doesn't exceed clip duration
                         transition_duration = current_out.get('duration', 0)
+                        current_duration = current_end - current_start
                         if transition_duration > current_duration:
                             raise SwmlError(
                                 f"Transition duration ({transition_duration}s) exceeds clip duration ({current_duration}s) in track {track['id']}"
                             )
-                        if transition_duration > next_clip.get('duration', float('inf')):
-                            next_duration = next_clip.get('duration', 'undefined')
+                        next_end = next_clip.get('end_time', next_start)
+                        next_duration = next_end - next_start
+                        if transition_duration > next_duration:
                             raise SwmlError(
                                 f"Transition duration ({transition_duration}s) exceeds clip duration ({next_duration}s) in track {track['id']}"
                             )
@@ -169,6 +170,18 @@ class SwimlanesEngine:
         # Default track type to 'video' for backward compatibility
         for track in data['tracks']:
             track.setdefault('type', 'video')
+
+        # Validate that all clips have required timing information
+        for track in data['tracks']:
+            for clip in track.get('clips', []):
+                start_time = clip.get('start_time', 0)
+                end_time = clip.get('end_time')
+                
+                if end_time is None:
+                    raise SwmlError(f"Clip in track {track.get('id', 'unknown')} missing required 'end_time' field")
+                
+                if end_time <= start_time:
+                    raise SwmlError(f"In track {track.get('id', 'unknown')}, clip end_time ({end_time}) must be greater than start_time ({start_time})")
 
         # Validate transitions
         self._validate_transitions(data['tracks'])
@@ -251,22 +264,17 @@ class SwimlanesEngine:
         Returns:
             (effective_start, base_duration, is_cross_transition, render_duration)
             - effective_start: When the clip starts rendering (may be earlier for cross-fade in)
-            - base_duration: Original clip duration (unchanged)
+            - base_duration: Original clip duration (calculated from start_time and end_time)
             - is_cross_transition: Whether this clip participates in cross-transitions
             - render_duration: How long to render the clip (may be longer for overlaps)
         """
         start_time = clip.get('start_time', 0)
+        end_time = clip.get('end_time', start_time)
         
-        # Get the base duration for this clip
-        if 'duration' in clip:
-            base_duration = clip['duration']
-        elif 'source_end' in clip and 'source_start' in clip:
-            base_duration = clip['source_end'] - clip['source_start']
-        elif 'source_end' in clip:
-            base_duration = clip['source_end']  # Assuming source_start defaults to 0
-        else:
-            # For images or when no duration specified, we'll set this later
-            base_duration = 0
+        # Calculate the base duration from start_time and end_time
+        base_duration = end_time - start_time
+        if base_duration <= 0:
+            raise SwmlError(f"Clip end_time ({end_time}) must be greater than start_time ({start_time})")
         
         effective_start = start_time
         render_duration = base_duration
@@ -278,14 +286,10 @@ class SwimlanesEngine:
             prev_clip.get('cross', False)):
             
             prev_start = prev_clip.get('start_time', 0)
-            prev_duration = prev_clip.get('duration', 0)
-            if 'source_end' in prev_clip and 'source_start' in prev_clip:
-                prev_duration = prev_clip['source_end'] - prev_clip['source_start']
-            elif 'source_end' in prev_clip:
-                prev_duration = prev_clip['source_end']
+            prev_end = prev_clip.get('end_time', prev_start)
                 
             # Check if clips are adjacent
-            if abs((prev_start + prev_duration) - start_time) < 0.001:
+            if abs(prev_end - start_time) < 0.001:
                 transition_in = clip.get('transition_in')
                 if transition_in and transition_in.get('type') == 'fade':
                     transition_duration = transition_in.get('duration', 0)
@@ -298,7 +302,7 @@ class SwimlanesEngine:
         if (next_clip and 
             clip.get('cross', False) and 
             next_clip.get('cross', False) and
-            abs((start_time + base_duration) - next_clip.get('start_time', 0)) < 0.001):  # Adjacent clips
+            abs(end_time - next_clip.get('start_time', 0)) < 0.001):  # Adjacent clips
             
             transition_out = clip.get('transition_out')
             if transition_out and transition_out.get('type') == 'fade':
@@ -361,16 +365,6 @@ class SwimlanesEngine:
                 next_clip = sorted_clips[i + 1] if i + 1 < len(sorted_clips) else None
                 prev_clip = sorted_clips[i - 1] if i > 0 else None
                 effective_start, base_duration, is_cross_transition, render_duration = self._calculate_clip_timing(clip, next_clip, prev_clip)
-                
-                # For images without duration specified, use remaining composition time or default
-                if base_duration == 0:
-                    if 'duration' in clip:
-                        base_duration = clip['duration']
-                        render_duration = base_duration
-                    else:
-                        # Default duration for images is remaining time from start
-                        base_duration = comp['duration'] - clip.get('start_time', 0)
-                        render_duration = base_duration
                 
                 # Handle timing for images vs. videos
                 is_image = source_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
@@ -465,22 +459,32 @@ class SwimlanesEngine:
                 clip_stream = source_streams[source_id][clip_index]
                 source_clip_counters[source_id] += 1
                 
-                # --- UPDATED TIMING LOGIC ---
+                # --- UPDATED TIMING LOGIC TO USE END_TIME ---
                 start = clip.get('source_start', 0)
                 
-                if 'duration' in clip:
-                    # Priority 1: Use explicit duration if provided
-                    clip_stream = clip_stream.filter('atrim', start=start, duration=clip['duration'])
+                # Calculate duration from start_time and end_time
+                start_time = clip.get('start_time', 0)
+                end_time = clip.get('end_time')
+                
+                if end_time is not None:
+                    # Use end_time to calculate the clip duration
+                    clip_duration = end_time - start_time
+                    if clip_duration <= 0:
+                        raise SwmlError(f"In audio clip from source '{source_id}', end_time ({end_time}) must be greater than start_time ({start_time}).")
+                    clip_stream = clip_stream.filter('atrim', start=start, duration=clip_duration)
                 elif 'source_end' in clip:
-                    # Priority 2: Use source_end to calculate duration
-                    end = clip['source_end']
-                    if end <= start:
-                        raise SwmlError(f"In clip from source '{source_id}', source_end ({end}) must be greater than source_start ({start}).")
-                    calculated_duration = end - start
+                    # Fallback to source_end to calculate duration
+                    source_end = clip['source_end']
+                    if source_end <= start:
+                        raise SwmlError(f"In audio clip from source '{source_id}', source_end ({source_end}) must be greater than source_start ({start}).")
+                    calculated_duration = source_end - start
                     clip_stream = clip_stream.filter('atrim', start=start, duration=calculated_duration)
                 elif 'source_start' in clip:
-                    # Priority 3: No end point specified, so trim from start to end of source
+                    # No end point specified, so trim from start to end of source
                     clip_stream = clip_stream.filter('atrim', start=start)
+                else:
+                    # No timing specified - this should not happen with proper validation
+                    raise SwmlError(f"Audio clip from source '{source_id}' must specify either 'end_time' or 'source_end'")
 
                 clip_stream = clip_stream.filter('asetpts', 'PTS-STARTPTS')
                 # --- END OF UPDATED LOGIC ---
