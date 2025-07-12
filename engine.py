@@ -375,32 +375,16 @@ class SwimlanesEngine:
                 # Handle timing for images vs. videos
                 is_image = source_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
                 if is_image:
-                    # For images, handle sizing with padding/cropping instead of scaling
+                    # For images, apply the same transform logic as videos
                     image_duration = render_duration
                     transform = self.calculate_clip_transform(clip, source_path)
-                    comp_data = self.swml_data['composition']
                     
                     # Create the base image stream
                     clip_stream = clip_stream.filter('loop', loop=-1, size=1, start=0)
                     clip_stream = clip_stream.filter('trim', duration=image_duration).filter('setpts', 'PTS-STARTPTS')
                     
-                    # Handle image sizing - pad if too small, crop if too large
-                    source_width = transform['source_width']
-                    source_height = transform['source_height']
-                    target_width = comp_data['width']
-                    target_height = comp_data['height']
-                    
-                    if source_width < target_width or source_height < target_height:
-                        # Pad the image to canvas size
-                        clip_stream = clip_stream.filter('pad', target_width, target_height, 
-                                                        (target_width - source_width) // 2,
-                                                        (target_height - source_height) // 2,
-                                                        color='black')
-                    elif source_width > target_width or source_height > target_height:
-                        # Crop the image to canvas size  
-                        clip_stream = clip_stream.filter('crop', target_width, target_height,
-                                                        (source_width - target_width) // 2,
-                                                        (source_height - target_height) // 2)
+                    # Apply scaling to match the calculated transform dimensions
+                    clip_stream = clip_stream.filter('scale', transform['width'], transform['height'])
                     
                 elif 'source_start' in clip or 'source_end' in clip:
                     source_start = clip.get('source_start', 0)
@@ -434,20 +418,12 @@ class SwimlanesEngine:
 
                 clip_stream = clip_stream.filter('format', 'rgba')
                 
-                # For images, positioning is simpler since we've already sized them to canvas
-                if is_image:
-                    # Images are already sized to canvas, so overlay at (0,0).
-                    current_stream = ffmpeg.filter(
-                        [current_stream, clip_stream], 'overlay',
-                        x=0, y=0, eof_action='pass'
-                    )
-                else:
-                    # Use calculated transform for videos
-                    transform = self.calculate_clip_transform(clip, source_path)
-                    current_stream = ffmpeg.filter(
-                        [current_stream, clip_stream], 'overlay',
-                        x=transform['x'], y=transform['y'], eof_action='pass'
-                    )
+                # Apply calculated transform for positioning (both images and videos)
+                transform = self.calculate_clip_transform(clip, source_path)
+                current_stream = ffmpeg.filter(
+                    [current_stream, clip_stream], 'overlay',
+                    x=transform['x'], y=transform['y'], eof_action='pass'
+                )
         
         return current_stream
         

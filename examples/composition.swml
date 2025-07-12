@@ -3,41 +3,83 @@
     "width": 1280,
     "height": 720,
     "fps": 30,
-    "duration": 10,
-    "output_format": "mp4"
+    "duration": 15,
+    "background_color": "black"
   },
   "sources": {
-    "background": "./examples/media/background.mp4",
-    "logo_overlay": "./examples/media/logo.png"
+    "background_vid": "./examples/media/background.mp4",
+    "logo_img": "./examples/media/logo.png",
+    "t_vid": "./examples/media/BeautifulTransparentAnimation.mov",
+    "pic": "./examples/media/BeHappy.jpg"
   },
   "tracks": [
     {
-      "id": 1,
+      "id": 2,
+      "type": "video",
       "clips": [
         {
-          "source_id": "background",
-          "start_time": 0, "source_end": 10,
-            "transform": {
-            "scale": 1,
-            "position": [0, 0],
-            "anchor": [0, 0],
-            "size": [1280, 720]
+          "source_id": "background_vid",
+          "start_time": 1,
+          "duration": 6,
+          "transform": { "anchor": [0, 0], "position": [0, 0], "scale": 1 },
+          "transition_out": {
+            "type": "fade",
+            "duration": 2.0
+          },
+          "transition_in": {
+            "type": "fade",
+            "duration": 1.0
+          },
+          "cross": true
+        },
+        {
+          "source_id": "pic",
+          "start_time": 7,
+          "duration": 8,
+          "transform": { "anchor": [0, 0], "position": [0, 0], "size":[1280, 720] },
+          "transition_in": {
+            "type": "fade",
+            "duration": 2.0
+          },
+          "cross": true
+        }
+      ]
+    },
+
+
+    
+    {
+      "id": 100,
+      "type": "audio",
+      "clips": [
+        { "source_id": "background_vid", "start_time": 0, "volume": 1.0 }
+      ]
+    },
+        {
+      "id": -100,
+      "type": "video",
+      "clips": [
+        {
+          "source_id": "t_vid",
+          "start_time": 1,
+          "duration": 7,
+          "transform": { "anchor": [0, 0], "position": [0, 0], "scale": 1, "size": [1280, 720] },
+          "transition_out": {
+            "type": "fade",
+            "duration": 1.0
+          },
+          "transition_in": {
+            "type": "fade",
+            "duration": 1.0
           }
         }
       ]
     },
     {
-      "id": 0,
+      "id": 101,
+      "type": "audio",
       "clips": [
-        {
-          "source_id": "logo_overlay",
-          "start_time": 1, "duration": 8,
-          "transform": {
-            "scale": 1,
-            "position": [0, 0],
-            "anchor": [0, 0]
-          }
-        }
+        { "source_id": "background_vid", "start_time": 0.5, "volume": 0.4, "fade_out": 4.0 }
       ]
     }
   ]
