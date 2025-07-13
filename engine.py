@@ -342,7 +342,7 @@ def apply_transform(vse, strip, clip, channel):
     source_w, source_h = strip.elements[0].orig_width, strip.elements[0].orig_height
 
     # Get transform parameters
-    scale = transform.get('scale', 1.0)
+    scale = transform.get('scale', 1.0)  # Default to 1.0 if not specified
     position = transform.get('position', [0, 0])  # Cartesian: 0,0 = center
     anchor = transform.get('anchor', [0, 0])      # Cartesian: 0,0 = center of clip
     

@@ -19,7 +19,7 @@
           "source_id": "background_vid",
           "start_time": 1,
           "end_time": 7,
-          "transform": { "anchor": [0, 0], "position": [0, 0], "scale": 1 },
+          "transform": { "anchor": [0, 0], "position": [0, 0], "size": [1920, 1080] },
           "transition_out": {
             "type": "fade",
             "duration": 2.0
