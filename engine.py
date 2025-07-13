@@ -35,76 +35,76 @@ class SwimlanesEngine:
             raise SwmlError(f"Failed to probe media file {file_path}: {e}")
 
     def _validate_transitions(self, tracks: List[Dict[str, Any]]) -> None:
-        """Validate transition logic for all video tracks."""
+        """
+        Validate transition logic for all video tracks.
+        Transitions are defined within the transition object using 'cross': true.
+        """
         for track in tracks:
             if track.get('type', 'video') != 'video':
                 continue
-                
+
+            for clip in track.get('clips', []):
+                for trans_key in ['transition_in', 'transition_out']:
+                    transition = clip.get(trans_key)
+                    if transition and not transition.get('cross', False):
+                        raise SwmlError(
+                            f"Clip in track {track.get('id', 'unknown')} has a transition defined without 'cross': true. "
+                            f"All transitions must be defined as cross-transitions by including 'cross': true "
+                            f"inside the transition object."
+                        )
+
             clips = track.get('clips', [])
             if len(clips) < 2:
                 continue
-                
-            # Sort clips by start_time for adjacency checking
+
             sorted_clips = sorted(clips, key=lambda c: c.get('start_time', 0))
-            
+
             for i in range(len(sorted_clips) - 1):
                 current_clip = sorted_clips[i]
                 next_clip = sorted_clips[i + 1]
-                
-                # Check if clips are adjacent
+
                 current_start = current_clip.get('start_time', 0)
                 current_end = current_clip.get('end_time', current_start)
                 next_start = next_clip.get('start_time', 0)
+
+                if abs(current_end - next_start) > 0.001:
+                    continue
+
+                current_out = current_clip.get('transition_out')
+                next_in = next_clip.get('transition_in')
                 
-                # If clips are adjacent (no gap)
-                if abs(current_end - next_start) < 0.001:  # Small epsilon for floating point comparison
-                    current_cross = current_clip.get('cross', False)
-                    next_cross = next_clip.get('cross', False)
-                    
-                    # Check for explicit cross-transitions
-                    if current_cross or next_cross:
-                        # Both clips must have cross=True
-                        if not (current_cross and next_cross):
-                            raise SwmlError(
-                                f"Cross-transition mismatch in track {track['id']}: "
-                                f"Both adjacent clips must have 'cross': true for cross-transitions"
-                            )
-                        
-                        # Get transitions
-                        current_out = current_clip.get('transition_out')
-                        next_in = next_clip.get('transition_in')
-                        
-                        # Both must have transitions
-                        if not current_out or not next_in:
-                            raise SwmlError(
-                                f"Cross-transition error in track {track['id']}: "
-                                f"Both clips must have matching transitions when cross=true"
-                            )
-                        
-                        # Transitions must match
-                        if (current_out.get('type') != next_in.get('type') or 
-                            current_out.get('duration') != next_in.get('duration')):
-                            raise SwmlError(
-                                f"Cross-transition error in track {track['id']}: "
-                                f"Adjacent clips have mismatched transitions:\n"
-                                f"- Clip ending at t={current_end}: {current_out}\n"
-                                f"- Clip starting at t={next_start}: {next_in}\n"
-                                f"Cross-transitions require identical transition types and durations"
-                            )
-                        
-                        # Validate transition duration doesn't exceed clip duration
-                        transition_duration = current_out.get('duration', 0)
-                        current_duration = current_end - current_start
-                        if transition_duration > current_duration:
-                            raise SwmlError(
-                                f"Transition duration ({transition_duration}s) exceeds clip duration ({current_duration}s) in track {track['id']}"
-                            )
-                        next_end = next_clip.get('end_time', next_start)
-                        next_duration = next_end - next_start
-                        if transition_duration > next_duration:
-                            raise SwmlError(
-                                f"Transition duration ({transition_duration}s) exceeds clip duration ({next_duration}s) in track {track['id']}"
-                            )
+                is_current_cross = current_out and current_out.get('cross')
+                is_next_cross = next_in and next_in.get('cross')
+
+                if is_current_cross != is_next_cross:
+                    raise SwmlError(
+                        f"Cross-transition mismatch in track {track['id']} at t={current_end}: "
+                        f"An outgoing cross-transition must be met by an incoming cross-transition on the adjacent clip."
+                    )
+                
+                if is_current_cross and is_next_cross:
+                    if (current_out.get('type') != next_in.get('type') or
+                        current_out.get('duration') != next_in.get('duration')):
+                        raise SwmlError(
+                            f"Cross-transition error in track {track['id']}: "
+                            f"Adjacent clips have mismatched transitions:\n"
+                            f"- Clip ending at t={current_end}: {current_out}\n"
+                            f"- Clip starting at t={next_start}: {next_in}\n"
+                            f"Cross-transitions require identical transition types and durations."
+                        )
+
+                    transition_duration = current_out.get('duration', 0)
+                    current_duration = current_end - current_start
+                    if transition_duration > current_duration:
+                        raise SwmlError(
+                            f"Transition duration ({transition_duration}s) exceeds clip duration ({current_duration}s) in track {track['id']}"
+                        )
+                    next_end = next_clip.get('end_time', next_start)
+                    next_duration = next_end - next_start
+                    if transition_duration > next_duration:
+                        raise SwmlError(
+                            f"Transition duration ({transition_duration}s) exceeds clip duration ({next_duration}s) in track {track['id']}"
+                        )
 
     def parse_swml(self) -> Dict[str, Any]:
         """Load and validate SWML file"""
@@ -116,7 +116,6 @@ class SwimlanesEngine:
         except json.JSONDecodeError as e:
             raise SwmlError(f"Invalid JSON in SWML file: {e}")
 
-        # --- Base validation ---
         required_keys = ['composition', 'sources', 'tracks']
         for key in required_keys:
             if key not in data:
@@ -131,7 +130,6 @@ class SwimlanesEngine:
         comp.setdefault('output_format', 'mp4')
         comp.setdefault('background_color', 'black')
 
-        # --- Source file validation ---
         missing_files = []
         audio_sources_without_audio = []
         video_sources_without_video = []
@@ -167,11 +165,9 @@ class SwimlanesEngine:
         if video_sources_without_video:
             raise SwmlError("The following sources are used in video tracks but have no video stream:\n" + "\n".join(video_sources_without_video))
 
-        # Default track type to 'video' for backward compatibility
         for track in data['tracks']:
             track.setdefault('type', 'video')
 
-        # Validate that all clips have required timing information
         for track in data['tracks']:
             for clip in track.get('clips', []):
                 start_time = clip.get('start_time', 0)
@@ -183,9 +179,7 @@ class SwimlanesEngine:
                 if end_time <= start_time:
                     raise SwmlError(f"In track {track.get('id', 'unknown')}, clip end_time ({end_time}) must be greater than start_time ({start_time})")
 
-        # Validate transitions
         self._validate_transitions(data['tracks'])
-
         self.swml_data = data
         return data
 
@@ -212,7 +206,6 @@ class SwimlanesEngine:
         source_width, source_height = self.probe_media_dimensions(source_path)
         comp = self.swml_data['composition']
 
-        # Handle size - if specified, use it; otherwise use source dimensions
         if 'size' in transform:
             width, height = transform['size']
         else:
@@ -237,28 +230,8 @@ class SwimlanesEngine:
         return {'width': final_width, 'height': final_height, 'x': final_x, 'y': final_y, 
                 'source_width': source_width, 'source_height': source_height}
 
-    def _apply_clip_transitions(self, stream, clip, duration, is_cross=False):
-        """Applies fade-in and fade-out transitions to a video clip stream using optimized fade filter."""
-        transition_in = clip.get('transition_in')
-        transition_out = clip.get('transition_out')
-        
-        # Apply fade-in transition (only if NOT part of a cross-transition)
-        if transition_in and transition_in.get('type') == 'fade' and not is_cross:
-            fade_duration = transition_in.get('duration', 0)
-            if fade_duration > 0:
-                stream = stream.filter('fade', type='in', start_time=0, duration=fade_duration, alpha=1)
-
-        # Apply fade-out transition (only if NOT part of a cross-transition)
-        if transition_out and transition_out.get('type') == 'fade' and not is_cross:
-            fade_duration = transition_out.get('duration', 0)
-            if fade_duration > 0:
-                fade_out_start = duration - fade_duration
-                stream = stream.filter('fade', type='out', start_time=max(0, fade_out_start), duration=fade_duration, alpha=1)
-                
-        return stream
-    
     def _process_clip_stream(self, clip: Dict[str, Any], clip_stream: ffmpeg.Stream) -> Tuple[ffmpeg.Stream, float]:
-        """Processes a raw clip stream by applying timing, scaling, and non-cross transitions."""
+        """Processes a raw clip stream by applying timing and scaling."""
         source_id = clip['source_id']
         source_path = self.swml_data['sources'][source_id]
         
@@ -279,12 +252,8 @@ class SwimlanesEngine:
                 clip_stream = clip_stream.filter('trim', start=source_start)
             clip_stream = clip_stream.filter('setpts', 'PTS-STARTPTS')
         
-        # All clips (image or video) get scaled
         transform = self.calculate_clip_transform(clip, source_path)
         clip_stream = clip_stream.filter('scale', transform['width'], transform['height'])
-        
-        # Apply regular (non-cross) transitions
-        clip_stream = self._apply_clip_transitions(clip_stream, clip, duration, is_cross=False)
         
         return clip_stream, transform
         
@@ -294,7 +263,6 @@ class SwimlanesEngine:
         sources = self.swml_data['sources']
         video_tracks = [t for t in self.swml_data['tracks'] if t.get('type', 'video') == 'video']
 
-        # Create background color source
         current_stream = (
             ffmpeg.input(f"color={comp['background_color']}:size={comp['width']}x{comp['height']}:duration={comp['duration']}:rate={comp['fps']}", f='lavfi')
             .filter('format', 'rgba')
@@ -321,115 +289,200 @@ class SwimlanesEngine:
 
         source_clip_counters = {source_id: 0 for source_id in source_clips.keys()}
         
-        # Tracks are rendered from top down (higher ID on top)
         sorted_tracks = sorted(video_tracks, key=lambda t: t['id'], reverse=True)
         
         for track in sorted_tracks:
             clips = track['clips']
             sorted_clips = sorted(clips, key=lambda c: c.get('start_time', 0))
             
+            processed_indices = set()
+
             i = 0
             while i < len(sorted_clips):
+                if i in processed_indices:
+                    i += 1
+                    continue
+
                 clip = sorted_clips[i]
                 
-                # Check for a cross-transition pair
-                next_clip = sorted_clips[i + 1] if i + 1 < len(sorted_clips) else None
-                is_cross_pair = (next_clip and 
-                               clip.get('cross', False) and 
-                               next_clip.get('cross', False) and
-                               abs(clip.get('end_time', 0) - next_clip.get('start_time', 0)) < 0.001)
+                # Check if this clip starts a chain of cross-transitions
+                transition_chain = [clip]
+                chain_indices = [i]
                 
-                if is_cross_pair:
-                    # --- XFADE PATH ---
-                    # 1. Process both clips individually
-                    clip_A_stream = source_streams[clip['source_id']][source_clip_counters[clip['source_id']]]
-                    source_clip_counters[clip['source_id']] += 1
+                j = i + 1
+                while j < len(sorted_clips):
+                    current_clip = transition_chain[-1]
+                    next_clip = sorted_clips[j]
                     
-                    clip_B_stream = source_streams[next_clip['source_id']][source_clip_counters[next_clip['source_id']]]
-                    source_clip_counters[next_clip['source_id']] += 1
-
-                    # Process each clip to apply transforms, but NOT non-cross transitions
-                    # Note: We are not using the helper here to keep the logic explicit for xfade
-                    def prepare_for_xfade(c, s):
-                        start = c.get('start_time', 0)
-                        end = c.get('end_time', start)
-                        duration = end - start
-                        
-                        source_path = sources[c['source_id']]
-                        is_image = source_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
-                        if is_image:
-                            s = s.filter('loop', loop=-1, size=1, start=0).filter('trim', duration=duration).filter('setpts', 'PTS-STARTPTS')
-                        elif 'source_start' in c or 'source_end' in c:
-                            src_start = c.get('source_start', 0)
-                            if 'source_end' in c:
-                                s = s.filter('trim', start=src_start, duration=c['source_end'] - src_start)
-                            else:
-                                s = s.filter('trim', start=src_start)
-                            s = s.filter('setpts', 'PTS-STARTPTS')
-                        
-                        t = self.calculate_clip_transform(c, source_path)
-                        s = s.filter('scale', t['width'], t['height']).filter('format', 'rgba')
-                        return s, t, duration
-
-                    processed_A, transform_A, duration_A = prepare_for_xfade(clip, clip_A_stream)
-                    processed_B, transform_B, duration_B = prepare_for_xfade(next_clip, clip_B_stream)
-
-                    # 2. Create full-size transparent canvases for each clip
-                    canvas_A = ffmpeg.input(f"color=black@0.0:s={comp['width']}x{comp['height']}:d={duration_A}:r={comp['fps']}", f='lavfi', t=duration_A).filter('format', 'rgba')
-                    canvas_B = ffmpeg.input(f"color=black@0.0:s={comp['width']}x{comp['height']}:d={duration_B}:r={comp['fps']}", f='lavfi', t=duration_B).filter('format', 'rgba')
+                    # Check if there's a cross-transition between current and next
+                    transition_out = current_clip.get('transition_out')
+                    transition_in = next_clip.get('transition_in')
                     
-                    # 3. Overlay each processed clip onto its canvas at the correct position
-                    positioned_A = ffmpeg.filter([canvas_A, processed_A], 'overlay', x=transform_A['x'], y=transform_A['y'])
-                    positioned_B = ffmpeg.filter([canvas_B, processed_B], 'overlay', x=transform_B['x'], y=transform_B['y'])
-
-                    # 4. Perform the xfade between the two positioned canvases
-                    transition_props = clip.get('transition_out', {})
-                    transition_duration = transition_props.get('duration', 0)
-                    transition_type = transition_props.get('type', 'fade') # Default to fade
-                    
-                    xfade_offset = duration_A - transition_duration
-                    
-                    combined_stream = ffmpeg.filter(
-                        [positioned_A, positioned_B], 'xfade',
-                        transition=transition_type,
-                        duration=transition_duration,
-                        offset=xfade_offset
+                    is_cross_pair = (
+                        abs(current_clip.get('end_time', 0) - next_clip.get('start_time', 0)) < 0.001 and
+                        transition_out and transition_out.get('cross', False) and
+                        transition_in and transition_in.get('cross', False)
                     )
                     
-                    # 5. Position the combined, transitioned stream on the main timeline
-                    start_time = clip.get('start_time', 0)
-                    combined_stream = combined_stream.filter('setpts', f'PTS-STARTPTS+{start_time}/TB')
-                    
-                    # 6. Overlay the final result onto the main composition stream
-                    current_stream = ffmpeg.filter(
-                        [current_stream, combined_stream], 'overlay',
-                        x=0, y=0, eof_action='pass' # x/y are 0 because it's already a full canvas
-                    )
-                    
-                    i += 2 # Skip the next clip
-                else:
-                    # --- REGULAR CLIP PATH ---
+                    if is_cross_pair:
+                        transition_chain.append(next_clip)
+                        chain_indices.append(j)
+                        j += 1
+                    else:
+                        break
+                
+                # Process the chain
+                if len(transition_chain) == 1:
+                    # Single clip, no cross-transitions
                     clip_stream_raw = source_streams[clip['source_id']][source_clip_counters[clip['source_id']]]
                     source_clip_counters[clip['source_id']] += 1
                     
-                    # Process the clip normally
                     processed_stream, transform = self._process_clip_stream(clip, clip_stream_raw)
                     
-                    # Position on timeline
                     start_time = clip.get('start_time', 0)
                     processed_stream = processed_stream.filter('setpts', f'PTS-STARTPTS+{start_time}/TB')
                     processed_stream = processed_stream.filter('format', 'rgba')
                     
-                    # Overlay onto the main stream at its calculated position
                     current_stream = ffmpeg.filter(
                         [current_stream, processed_stream], 'overlay',
                         x=transform['x'], y=transform['y'], eof_action='pass'
                     )
                     
-                    i += 1
+                    processed_indices.add(i)
+                else:
+                    # Process chain of cross-transitions
+                    current_stream = self._process_transition_chain(
+                        transition_chain, chain_indices, current_stream, source_streams, source_clip_counters
+                    )
+                    
+                    # Mark all clips in the chain as processed
+                    for idx in chain_indices:
+                        processed_indices.add(idx)
+                
+                i += 1
         
         return current_stream
+
+    def _process_transition_chain(self, transition_chain, chain_indices, current_stream, source_streams, source_clip_counters):
+        """Process a chain of cross-transitioning clips."""
+        comp = self.swml_data['composition']
+        sources = self.swml_data['sources']
         
+        # Debug: Print source counter state
+        print(f"Processing transition chain with {len(transition_chain)} clips")
+        for source_id, counter in source_clip_counters.items():
+            available = len(source_streams.get(source_id, []))
+            print(f"Source {source_id}: counter={counter}, available={available}")
+        
+        # Build a sequential xfade chain from the clips
+        if len(transition_chain) < 2:
+            raise SwmlError("Transition chain must have at least 2 clips")
+        
+        # Process the first two clips
+        clip_A = transition_chain[0]
+        clip_B = transition_chain[1]
+        
+        # Get streams for both clips with bounds checking
+        source_id_A = clip_A['source_id']
+        source_id_B = clip_B['source_id']
+        
+        if source_clip_counters[source_id_A] >= len(source_streams[source_id_A]):
+            raise SwmlError(f"Not enough streams for source {source_id_A}: need {source_clip_counters[source_id_A] + 1}, have {len(source_streams[source_id_A])}")
+        
+        if source_clip_counters[source_id_B] >= len(source_streams[source_id_B]):
+            raise SwmlError(f"Not enough streams for source {source_id_B}: need {source_clip_counters[source_id_B] + 1}, have {len(source_streams[source_id_B])}")
+        
+        clip_A_stream = source_streams[source_id_A][source_clip_counters[source_id_A]]
+        source_clip_counters[source_id_A] += 1
+        
+        clip_B_stream = source_streams[source_id_B][source_clip_counters[source_id_B]]
+        source_clip_counters[source_id_B] += 1
+
+        def prepare_for_xfade(c, s):
+            start = c.get('start_time', 0)
+            end = c.get('end_time', start)
+            duration = end - start
+            
+            source_path = sources[c['source_id']]
+            is_image = source_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
+            if is_image:
+                s = s.filter('loop', loop=-1, size=1, start=0).filter('trim', duration=duration).filter('setpts', 'PTS-STARTPTS')
+            elif 'source_start' in c or 'source_end' in c:
+                src_start = c.get('source_start', 0)
+                if 'source_end' in c:
+                    s = s.filter('trim', start=src_start, duration=c['source_end'] - src_start)
+                else:
+                    s = s.filter('trim', start=src_start)
+                s = s.filter('setpts', 'PTS-STARTPTS')
+            
+            t = self.calculate_clip_transform(c, source_path)
+            s = s.filter('scale', t['width'], t['height']).filter('format', 'rgba')
+            return s, t, duration
+
+        processed_A, transform_A, duration_A = prepare_for_xfade(clip_A, clip_A_stream)
+        processed_B, transform_B, duration_B = prepare_for_xfade(clip_B, clip_B_stream)
+
+        canvas_A = ffmpeg.input(f"color=black@0.0:s={comp['width']}x{comp['height']}:d={duration_A}:r={comp['fps']}", f='lavfi').filter('format', 'rgba')
+        canvas_B = ffmpeg.input(f"color=black@0.0:s={comp['width']}x{comp['height']}:d={duration_B}:r={comp['fps']}", f='lavfi').filter('format', 'rgba')
+        
+        positioned_A = ffmpeg.filter([canvas_A, processed_A], 'overlay', x=transform_A['x'], y=transform_A['y'])
+        positioned_B = ffmpeg.filter([canvas_B, processed_B], 'overlay', x=transform_B['x'], y=transform_B['y'])
+
+        transition_props = clip_A.get('transition_out', {})
+        transition_duration = transition_props.get('duration', 0)
+        transition_type = transition_props.get('type', 'fade') 
+        
+        xfade_offset = duration_A - transition_duration
+        
+        result_stream = ffmpeg.filter(
+            [positioned_A, positioned_B], 'xfade',
+            transition=transition_type,
+            duration=transition_duration,
+            offset=xfade_offset
+        )
+        
+        # For chains longer than 2, continue adding clips
+        for i in range(2, len(transition_chain)):
+            next_clip = transition_chain[i]
+            source_id_next = next_clip['source_id']
+            
+            if source_clip_counters[source_id_next] >= len(source_streams[source_id_next]):
+                raise SwmlError(f"Not enough streams for source {source_id_next}: need {source_clip_counters[source_id_next] + 1}, have {len(source_streams[source_id_next])}")
+            
+            next_stream = source_streams[source_id_next][source_clip_counters[source_id_next]]
+            source_clip_counters[source_id_next] += 1
+            
+            processed_next, transform_next, duration_next = prepare_for_xfade(next_clip, next_stream)
+            canvas_next = ffmpeg.input(f"color=black@0.0:s={comp['width']}x{comp['height']}:d={duration_next}:r={comp['fps']}", f='lavfi').filter('format', 'rgba')
+            positioned_next = ffmpeg.filter([canvas_next, processed_next], 'overlay', x=transform_next['x'], y=transform_next['y'])
+            
+            # Get transition from previous clip
+            prev_clip = transition_chain[i-1]
+            transition_props = prev_clip.get('transition_out', {})
+            transition_duration = transition_props.get('duration', 0)
+            transition_type = transition_props.get('type', 'fade')
+            
+            # Calculate current duration of result_stream (this is complex for multi-clip chains)
+            # For simplicity, let's use the duration of the previous clip
+            prev_duration = prev_clip.get('end_time', 0) - prev_clip.get('start_time', 0)
+            xfade_offset = prev_duration - transition_duration
+            
+            result_stream = ffmpeg.filter(
+                [result_stream, positioned_next], 'xfade',
+                transition=transition_type,
+                duration=transition_duration,
+                offset=xfade_offset
+            )
+        
+        # Position the final result on the main timeline
+        start_time = transition_chain[0].get('start_time', 0)
+        result_stream = result_stream.filter('setpts', f'PTS-STARTPTS+{start_time}/TB')
+        
+        # Overlay onto the main composition
+        return ffmpeg.filter(
+            [current_stream, result_stream], 'overlay',
+            x=0, y=0, eof_action='pass'
+        )        
     def _build_audio_graph(self):
         """Builds the complex FFmpeg filter graph for audio tracks."""
         comp = self.swml_data['composition']
@@ -553,9 +606,6 @@ class SwimlanesEngine:
             print(f"Rendering video: {self.output_path}")
             print("This may take a while...")
             
-            # For debugging, you can print the full ffmpeg command
-            # print(ffmpeg.compile(output, overwrite_output=True))
-            
             ffmpeg.run(output, overwrite_output=True, capture_stdout=True, capture_stderr=True)
             
             print(f"✓ Video rendered successfully: {self.output_path}")
@@ -565,7 +615,6 @@ class SwimlanesEngine:
             print(e.stderr.decode() if e.stderr else "Unknown FFmpeg error")
             raise SwmlError("FFmpeg rendering failed")
         except SwmlError as e:
-            # Re-raise SwmlError to be caught by the main function
             raise e
         except Exception as e:
             raise SwmlError(f"An unexpected rendering error occurred: {e}")
