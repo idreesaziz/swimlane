@@ -1,0 +1,206 @@
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 1280.0x720.0
+  Scale: 0.667, 0.667
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 1280.0x720.0
+  Scale: 0.667, 0.667
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 1280.0x720.0
+  Scale: 0.667, 0.667
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 500.0x500.0
+  Scale: 0.260, 0.463
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 500.0x281.25
+  Scale: 0.260, 0.260
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 500.0x500.0
+  Scale: 0.260, 0.463
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid (direct):
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+  Crop: 0-1920, 0-1080
+
+Transform debug for 2_pic (direct):
+  Source: 1920x1080
+  Final: 500.0x500.0
+  Scale: 0.260, 0.463
+  Offset: 0.0, 0.0
+  Crop: 0-1920, 0-1080
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 500.0x500.0
+  Scale: 0.260, 0.463
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 500.0x281.25
+  Scale: 0.260, 0.260
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 500.0x500.0
+  Scale: 0.260, 0.463
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 400x400
+  Final: 500.0x500.0
+  Scale: 1.250, 1.250
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 800.0x400.0
+  Scale: 0.417, 0.370
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 800.0x400.0
+  Scale: 0.417, 0.370
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 800.0x400.0
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 800.0x400.0
+  Scale: 0.417, 0.370
+  Offset: 0.0, 0.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 400x400
+  Scale: 0.208, 0.370
+  Offset: -440.0, 160.0
+
+Transform debug for 2_background_vid:
+  Source: 1920x1080
+  Final: 1920x1080
+  Scale: 1.000, 1.000
+  Offset: 0.0, 0.0
+
+Transform debug for 2_pic:
+  Source: 1920x1080
+  Final: 1280x720
+  Scale: 0.667, 0.667
+  Offset: 0.0, 0.0
+

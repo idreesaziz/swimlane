@@ -6,12 +6,10 @@
     "duration": 15,
     "background_color": "black"
   },
-  "sources": {
-    "background_vid": "./examples/media/background.mp4",
-    "logo_img": "./examples/media/logo.png",
-    "t_vid": "./examples/media/BeautifulTransparentAnimation.mov",
-    "pic": "./examples/media/BeHappy.jpg"
-  },
+  "sources": [
+    { "id": "background_vid", "path": "media/background.mp4" },
+    { "id": "pic", "path": "media/BeHappy.png" }
+  ],
   "tracks": [
     {
       "id": 2,
@@ -36,7 +34,7 @@
           "source_id": "pic",
           "start_time": 7,
           "end_time": 15,
-          "transform": { "anchor": [0, 0], "position": [0, 0], "size":[1280, 720] },
+          "transform": { "anchor": [-1, -1], "position": [-1, -1], "size":[1280, 720], "scale": 1 },
           "transition_in": {
             "type": "fade",
             "duration": 2.0
@@ -53,26 +51,6 @@
       "type": "audio",
       "clips": [
         { "source_id": "background_vid", "start_time": 0, "end_time": 15, "volume": 1.0 }
-      ]
-    },
-        {
-      "id": -100,
-      "type": "video",
-      "clips": [
-        {
-          "source_id": "t_vid",
-          "start_time": 1,
-          "end_time": 8,
-          "transform": { "anchor": [0, 0], "position": [0, 0], "scale": 1, "size": [1280, 720] },
-          "transition_out": {
-            "type": "fade",
-            "duration": 1.0
-          },
-          "transition_in": {
-            "type": "fade",
-            "duration": 1.0
-          }
-        }
       ]
     },
     {
