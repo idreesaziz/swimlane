@@ -242,77 +242,52 @@ class SwimlanesEngine:
         transition_in = clip.get('transition_in')
         transition_out = clip.get('transition_out')
         
-        # Apply fade-in transition
-        if transition_in and transition_in.get('type') == 'fade':
+        # Apply fade-in transition (only if NOT part of a cross-transition)
+        if transition_in and transition_in.get('type') == 'fade' and not is_cross:
             fade_duration = transition_in.get('duration', 0)
             if fade_duration > 0:
                 stream = stream.filter('fade', type='in', start_time=0, duration=fade_duration, alpha=1)
 
-        # Apply fade-out transition
-        if transition_out and transition_out.get('type') == 'fade':
+        # Apply fade-out transition (only if NOT part of a cross-transition)
+        if transition_out and transition_out.get('type') == 'fade' and not is_cross:
             fade_duration = transition_out.get('duration', 0)
             if fade_duration > 0:
                 fade_out_start = duration - fade_duration
                 stream = stream.filter('fade', type='out', start_time=max(0, fade_out_start), duration=fade_duration, alpha=1)
                 
         return stream
-
-    def _calculate_clip_timing(self, clip: Dict[str, Any], next_clip: Optional[Dict[str, Any]] = None, 
-                              prev_clip: Optional[Dict[str, Any]] = None) -> Tuple[float, float, bool, float]:
-        """Calculate effective start time and duration for a clip, considering cross-transitions.
+    
+    def _process_clip_stream(self, clip: Dict[str, Any], clip_stream: ffmpeg.Stream) -> Tuple[ffmpeg.Stream, float]:
+        """Processes a raw clip stream by applying timing, scaling, and non-cross transitions."""
+        source_id = clip['source_id']
+        source_path = self.swml_data['sources'][source_id]
         
-        Returns:
-            (effective_start, base_duration, is_cross_transition, render_duration)
-            - effective_start: When the clip starts rendering (may be earlier for cross-fade in)
-            - base_duration: Original clip duration (calculated from start_time and end_time)
-            - is_cross_transition: Whether this clip participates in cross-transitions
-            - render_duration: How long to render the clip (may be longer for overlaps)
-        """
         start_time = clip.get('start_time', 0)
         end_time = clip.get('end_time', start_time)
+        duration = end_time - start_time
         
-        # Calculate the base duration from start_time and end_time
-        base_duration = end_time - start_time
-        if base_duration <= 0:
-            raise SwmlError(f"Clip end_time ({end_time}) must be greater than start_time ({start_time})")
+        is_image = source_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
+        if is_image:
+            clip_stream = clip_stream.filter('loop', loop=-1, size=1, start=0)
+            clip_stream = clip_stream.filter('trim', duration=duration).filter('setpts', 'PTS-STARTPTS')
+        elif 'source_start' in clip or 'source_end' in clip:
+            source_start = clip.get('source_start', 0)
+            if 'source_end' in clip:
+                source_duration = clip['source_end'] - source_start
+                clip_stream = clip_stream.filter('trim', start=source_start, duration=source_duration)
+            else:
+                clip_stream = clip_stream.filter('trim', start=source_start)
+            clip_stream = clip_stream.filter('setpts', 'PTS-STARTPTS')
         
-        effective_start = start_time
-        render_duration = base_duration
-        is_cross_transition = False
+        # All clips (image or video) get scaled
+        transform = self.calculate_clip_transform(clip, source_path)
+        clip_stream = clip_stream.filter('scale', transform['width'], transform['height'])
         
-        # Check for cross-fade IN (with previous clip)
-        if (prev_clip and 
-            clip.get('cross', False) and 
-            prev_clip.get('cross', False)):
-            
-            prev_start = prev_clip.get('start_time', 0)
-            prev_end = prev_clip.get('end_time', prev_start)
-                
-            # Check if clips are adjacent
-            if abs(prev_end - start_time) < 0.001:
-                transition_in = clip.get('transition_in')
-                if transition_in and transition_in.get('type') == 'fade':
-                    transition_duration = transition_in.get('duration', 0)
-                    # Start rendering earlier to create overlap, but don't change logical timing
-                    effective_start = start_time - transition_duration
-                    render_duration = base_duration + transition_duration
-                    is_cross_transition = True
+        # Apply regular (non-cross) transitions
+        clip_stream = self._apply_clip_transitions(clip_stream, clip, duration, is_cross=False)
         
-        # Check for cross-fade OUT (with next clip)
-        if (next_clip and 
-            clip.get('cross', False) and 
-            next_clip.get('cross', False) and
-            abs(end_time - next_clip.get('start_time', 0)) < 0.001):  # Adjacent clips
-            
-            transition_out = clip.get('transition_out')
-            if transition_out and transition_out.get('type') == 'fade':
-                transition_duration = transition_out.get('duration', 0)
-                # Extend rendering duration to create overlap, but don't change logical end time
-                render_duration = base_duration + transition_duration
-                is_cross_transition = True
+        return clip_stream, transform
         
-        return effective_start, base_duration, is_cross_transition, render_duration
-    
     def _build_video_graph(self):
         """Builds the complex FFmpeg filter graph for video tracks."""
         comp = self.swml_data['composition']
@@ -353,71 +328,105 @@ class SwimlanesEngine:
             clips = track['clips']
             sorted_clips = sorted(clips, key=lambda c: c.get('start_time', 0))
             
-            for i, clip in enumerate(sorted_clips):
-                source_id = clip['source_id']
-                source_path = sources[source_id]
+            i = 0
+            while i < len(sorted_clips):
+                clip = sorted_clips[i]
                 
-                clip_index = source_clip_counters[source_id]
-                clip_stream = source_streams[source_id][clip_index]
-                source_clip_counters[source_id] += 1
-                
-                # Calculate timing considering cross-transitions
+                # Check for a cross-transition pair
                 next_clip = sorted_clips[i + 1] if i + 1 < len(sorted_clips) else None
-                prev_clip = sorted_clips[i - 1] if i > 0 else None
-                effective_start, base_duration, is_cross_transition, render_duration = self._calculate_clip_timing(clip, next_clip, prev_clip)
+                is_cross_pair = (next_clip and 
+                               clip.get('cross', False) and 
+                               next_clip.get('cross', False) and
+                               abs(clip.get('end_time', 0) - next_clip.get('start_time', 0)) < 0.001)
                 
-                # Handle timing for images vs. videos
-                is_image = source_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
-                if is_image:
-                    # For images, apply the same transform logic as videos
-                    image_duration = render_duration
-                    transform = self.calculate_clip_transform(clip, source_path)
+                if is_cross_pair:
+                    # --- XFADE PATH ---
+                    # 1. Process both clips individually
+                    clip_A_stream = source_streams[clip['source_id']][source_clip_counters[clip['source_id']]]
+                    source_clip_counters[clip['source_id']] += 1
                     
-                    # Create the base image stream
-                    clip_stream = clip_stream.filter('loop', loop=-1, size=1, start=0)
-                    clip_stream = clip_stream.filter('trim', duration=image_duration).filter('setpts', 'PTS-STARTPTS')
-                    
-                    # Apply scaling to match the calculated transform dimensions
-                    clip_stream = clip_stream.filter('scale', transform['width'], transform['height'])
-                    
-                elif 'source_start' in clip or 'source_end' in clip:
-                    source_start = clip.get('source_start', 0)
-                    if 'source_end' in clip:
-                        source_duration = clip['source_end'] - source_start
-                        clip_stream = clip_stream.filter('trim', start=source_start, duration=source_duration)
-                    else:
-                        clip_stream = clip_stream.filter('trim', start=source_start)
-                    clip_stream = clip_stream.filter('setpts', 'PTS-STARTPTS')
-                    
-                else:
-                    # No source timing specified, use the whole clip
-                    pass
-                
-                # For non-image clips, apply scaling as before
-                if not is_image:
-                    transform = self.calculate_clip_transform(clip, source_path)
-                    clip_stream = clip_stream.filter('scale', transform['width'], transform['height'])
-                
-                # Apply transitions using the BASE duration (not render duration)
-                # This ensures fade timings are calculated based on the user's intended clip length
-                clip_stream = self._apply_clip_transitions(clip_stream, clip, base_duration, is_cross_transition)
+                    clip_B_stream = source_streams[next_clip['source_id']][source_clip_counters[next_clip['source_id']]]
+                    source_clip_counters[next_clip['source_id']] += 1
 
-                # For cross-transitions, we need to handle the timeline positioning carefully
-                if is_cross_transition:
-                    # Use effective_start (which may be earlier) for positioning
-                    clip_stream = clip_stream.filter('setpts', f'PTS-STARTPTS+{effective_start}/TB')
-                else:
-                    # Use the original start time for regular clips
-                    clip_stream = clip_stream.filter('setpts', f'PTS-STARTPTS+{clip.get("start_time", 0)}/TB')
+                    # Process each clip to apply transforms, but NOT non-cross transitions
+                    # Note: We are not using the helper here to keep the logic explicit for xfade
+                    def prepare_for_xfade(c, s):
+                        start = c.get('start_time', 0)
+                        end = c.get('end_time', start)
+                        duration = end - start
+                        
+                        source_path = sources[c['source_id']]
+                        is_image = source_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
+                        if is_image:
+                            s = s.filter('loop', loop=-1, size=1, start=0).filter('trim', duration=duration).filter('setpts', 'PTS-STARTPTS')
+                        elif 'source_start' in c or 'source_end' in c:
+                            src_start = c.get('source_start', 0)
+                            if 'source_end' in c:
+                                s = s.filter('trim', start=src_start, duration=c['source_end'] - src_start)
+                            else:
+                                s = s.filter('trim', start=src_start)
+                            s = s.filter('setpts', 'PTS-STARTPTS')
+                        
+                        t = self.calculate_clip_transform(c, source_path)
+                        s = s.filter('scale', t['width'], t['height']).filter('format', 'rgba')
+                        return s, t, duration
 
-                clip_stream = clip_stream.filter('format', 'rgba')
-                
-                # Apply calculated transform for positioning (both images and videos)
-                transform = self.calculate_clip_transform(clip, source_path)
-                current_stream = ffmpeg.filter(
-                    [current_stream, clip_stream], 'overlay',
-                    x=transform['x'], y=transform['y'], eof_action='pass'
-                )
+                    processed_A, transform_A, duration_A = prepare_for_xfade(clip, clip_A_stream)
+                    processed_B, transform_B, duration_B = prepare_for_xfade(next_clip, clip_B_stream)
+
+                    # 2. Create full-size transparent canvases for each clip
+                    canvas_A = ffmpeg.input(f"color=black@0.0:s={comp['width']}x{comp['height']}:d={duration_A}:r={comp['fps']}", f='lavfi', t=duration_A).filter('format', 'rgba')
+                    canvas_B = ffmpeg.input(f"color=black@0.0:s={comp['width']}x{comp['height']}:d={duration_B}:r={comp['fps']}", f='lavfi', t=duration_B).filter('format', 'rgba')
+                    
+                    # 3. Overlay each processed clip onto its canvas at the correct position
+                    positioned_A = ffmpeg.filter([canvas_A, processed_A], 'overlay', x=transform_A['x'], y=transform_A['y'])
+                    positioned_B = ffmpeg.filter([canvas_B, processed_B], 'overlay', x=transform_B['x'], y=transform_B['y'])
+
+                    # 4. Perform the xfade between the two positioned canvases
+                    transition_props = clip.get('transition_out', {})
+                    transition_duration = transition_props.get('duration', 0)
+                    transition_type = transition_props.get('type', 'fade') # Default to fade
+                    
+                    xfade_offset = duration_A - transition_duration
+                    
+                    combined_stream = ffmpeg.filter(
+                        [positioned_A, positioned_B], 'xfade',
+                        transition=transition_type,
+                        duration=transition_duration,
+                        offset=xfade_offset
+                    )
+                    
+                    # 5. Position the combined, transitioned stream on the main timeline
+                    start_time = clip.get('start_time', 0)
+                    combined_stream = combined_stream.filter('setpts', f'PTS-STARTPTS+{start_time}/TB')
+                    
+                    # 6. Overlay the final result onto the main composition stream
+                    current_stream = ffmpeg.filter(
+                        [current_stream, combined_stream], 'overlay',
+                        x=0, y=0, eof_action='pass' # x/y are 0 because it's already a full canvas
+                    )
+                    
+                    i += 2 # Skip the next clip
+                else:
+                    # --- REGULAR CLIP PATH ---
+                    clip_stream_raw = source_streams[clip['source_id']][source_clip_counters[clip['source_id']]]
+                    source_clip_counters[clip['source_id']] += 1
+                    
+                    # Process the clip normally
+                    processed_stream, transform = self._process_clip_stream(clip, clip_stream_raw)
+                    
+                    # Position on timeline
+                    start_time = clip.get('start_time', 0)
+                    processed_stream = processed_stream.filter('setpts', f'PTS-STARTPTS+{start_time}/TB')
+                    processed_stream = processed_stream.filter('format', 'rgba')
+                    
+                    # Overlay onto the main stream at its calculated position
+                    current_stream = ffmpeg.filter(
+                        [current_stream, processed_stream], 'overlay',
+                        x=transform['x'], y=transform['y'], eof_action='pass'
+                    )
+                    
+                    i += 1
         
         return current_stream
         
@@ -459,47 +468,37 @@ class SwimlanesEngine:
                 clip_stream = source_streams[source_id][clip_index]
                 source_clip_counters[source_id] += 1
                 
-                # --- UPDATED TIMING LOGIC TO USE END_TIME ---
                 start = clip.get('source_start', 0)
                 
-                # Calculate duration from start_time and end_time
                 start_time = clip.get('start_time', 0)
                 end_time = clip.get('end_time')
                 
                 if end_time is not None:
-                    # Use end_time to calculate the clip duration
                     clip_duration = end_time - start_time
                     if clip_duration <= 0:
                         raise SwmlError(f"In audio clip from source '{source_id}', end_time ({end_time}) must be greater than start_time ({start_time}).")
                     clip_stream = clip_stream.filter('atrim', start=start, duration=clip_duration)
                 elif 'source_end' in clip:
-                    # Fallback to source_end to calculate duration
                     source_end = clip['source_end']
                     if source_end <= start:
                         raise SwmlError(f"In audio clip from source '{source_id}', source_end ({source_end}) must be greater than source_start ({start}).")
                     calculated_duration = source_end - start
                     clip_stream = clip_stream.filter('atrim', start=start, duration=calculated_duration)
                 elif 'source_start' in clip:
-                    # No end point specified, so trim from start to end of source
                     clip_stream = clip_stream.filter('atrim', start=start)
                 else:
-                    # No timing specified - this should not happen with proper validation
                     raise SwmlError(f"Audio clip from source '{source_id}' must specify either 'end_time' or 'source_end'")
 
                 clip_stream = clip_stream.filter('asetpts', 'PTS-STARTPTS')
-                # --- END OF UPDATED LOGIC ---
 
-                # Apply volume
                 if 'volume' in clip:
                     clip_stream = clip_stream.filter('volume', clip['volume'])
 
-                # Apply fades
                 if 'fade_in' in clip:
                     clip_stream = clip_stream.filter('afade', type='in', duration=clip['fade_in'])
                 if 'fade_out' in clip:
                     clip_stream = clip_stream.filter('afade', type='out', duration=clip['fade_out'])
 
-                # Apply delay to position the clip on the timeline for mixing
                 start_time_ms = int(clip.get('start_time', 0) * 1000)
                 clip_stream = clip_stream.filter('adelay', f"{start_time_ms}|{start_time_ms}")
 
@@ -508,7 +507,6 @@ class SwimlanesEngine:
         if not processed_audio_clips:
             return None
 
-        # Mix all processed audio clips together
         mixed_audio = ffmpeg.filter(processed_audio_clips, 'amix', inputs=len(processed_audio_clips), dropout_transition=0)
         return mixed_audio
 
@@ -548,13 +546,15 @@ class SwimlanesEngine:
             if final_audio_stream:
                 output_streams.append(final_audio_stream)
             
-            # Use shortest to ensure output duration matches composition if audio is longer
             kwargs = {**codec_settings, 'shortest': None, 'r': comp['fps'], 't': comp['duration']}
 
             output = ffmpeg.output(*output_streams, self.output_path, **kwargs)
             
             print(f"Rendering video: {self.output_path}")
             print("This may take a while...")
+            
+            # For debugging, you can print the full ffmpeg command
+            # print(ffmpeg.compile(output, overwrite_output=True))
             
             ffmpeg.run(output, overwrite_output=True, capture_stdout=True, capture_stderr=True)
             
