@@ -182,7 +182,7 @@ class SwimlanesEngine:
 
     def _generate_blender_script(self) -> str:
         """Generates the full Python script for Blender to execute."""
-        # (removed stray code fragment)
+        # Properly escape JSON data for embedding in Python script
         swml_data_str = json.dumps(self.swml_data, indent=2).replace('\\', '\\\\').replace("'", "\\'")
         output_settings = self._get_blender_output_settings()
 
@@ -241,19 +241,24 @@ def process_tracks(scene, vse):
     clip_strip_map = {{}}
 
     for i, track in enumerate(sorted_tracks):
-        channel = i * 2 + 1 # Use 2 channels per track for effects
+        base_channel = i * 3 + 1  # Use 3 channels per track (A, B, effects)
         
         if track.get('type') == 'audio':
-            process_audio_track(vse, track, channel, fps)
+            process_audio_track(vse, track, base_channel, fps)
         else: # Default is 'video'
-            process_video_track(vse, track, channel, fps, clip_strip_map)
+            process_video_track(vse, track, base_channel, fps, clip_strip_map)
 
-    # Post-process to create cross-fades
-    create_cross_fades(vse, sorted_tracks, fps, clip_strip_map)
+    # Post-process to create cross-transitions
+    create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map)
 
-def process_video_track(vse, track, channel, fps, clip_strip_map):
+def process_video_track(vse, track, base_channel, fps, clip_strip_map):
     comp = SWML_DATA['composition']
     sources = SOURCES_DICT
+    
+    # A/B roll channels for cross-fade transitions
+    channel_a = base_channel
+    channel_b = base_channel + 1
+    current_channel = channel_a  # Start with channel A
 
     for clip_idx, clip in enumerate(track.get('clips', [])):
         source_id = clip['source_id']
@@ -262,13 +267,25 @@ def process_video_track(vse, track, channel, fps, clip_strip_map):
         start_frame = time_to_frame(clip.get('start_time', 0), fps)
         end_frame = time_to_frame(clip.get('end_time', 0), fps)
 
+        # Check if this clip needs a cross-transition
+        needs_cross_transition = False
+        if clip_idx > 0:
+            prev_clip = track.get('clips', [])[clip_idx - 1]
+            prev_out = prev_clip.get('transition_out', {{}})
+            curr_in = clip.get('transition_in', {{}})
+            needs_cross_transition = prev_out.get('cross') and curr_in.get('cross')
+
+        # For cross-transitions, alternate between A and B channels
+        if needs_cross_transition:
+            current_channel = channel_b if current_channel == channel_a else channel_a
+
         is_image = source_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
 
         if is_image:
             strip = vse.sequences.new_image(
                 name="{{}}_{{}}".format(track.get('id'), clip.get('source_id')),
                 filepath=source_path,
-                channel=channel,
+                channel=current_channel,
                 frame_start=start_frame
             )
             strip.frame_final_end = end_frame
@@ -277,7 +294,7 @@ def process_video_track(vse, track, channel, fps, clip_strip_map):
             strip = vse.sequences.new_movie(
                 name="{{}}_{{}}".format(track.get('id'), clip.get('source_id')),
                 filepath=source_path,
-                channel=channel,
+                channel=current_channel,
                 frame_start=start_frame
             )
             strip.frame_final_duration = end_frame - start_frame
@@ -288,13 +305,13 @@ def process_video_track(vse, track, channel, fps, clip_strip_map):
         # Use a unique tuple key (track_id, clip_index)
         clip_strip_map[(track.get('id'), clip_idx)] = strip
 
-        # Handle Transformations
-        apply_transform(vse, strip, clip, channel + 1)
+        # Handle Transformations (effects channel is base_channel + 2)
+        apply_transform(vse, strip, clip, base_channel + 2)
 
         # Handle Simple Fades (non-cross)
         apply_simple_fades(strip, clip, fps)
 
-def process_audio_track(vse, track, channel, fps):
+def process_audio_track(vse, track, base_channel, fps):
     sources = SOURCES_DICT
     for clip in track.get('clips', []):
         source_path = sources[clip['source_id']]
@@ -305,7 +322,7 @@ def process_audio_track(vse, track, channel, fps):
         sound_strip = vse.sequences.new_sound(
             name=f"audio_{{clip['source_id']}}",
             filepath=source_path,
-            channel=channel,
+            channel=base_channel,
             frame_start=start_frame
         )
         sound_strip.frame_final_duration = end_frame - start_frame
@@ -390,9 +407,6 @@ def apply_transform(vse, strip, clip, channel):
     debug_info += f"  Offset: {{strip.transform.offset_x:.1f}}, {{strip.transform.offset_y:.1f}}\\n"
     print(debug_info)
     sys.stdout.flush()
-    # Also write to a debug file
-    with open("C:/Dev/swimlane/debug_transforms.txt", "a") as f:
-        f.write(debug_info + "\\n")
     
 def apply_simple_fades(strip, clip, fps):
     # Animate the strip's opacity for simple fades
@@ -415,7 +429,7 @@ def apply_simple_fades(strip, clip, fps):
             strip.blend_alpha = 0.0
             strip.keyframe_insert(data_path='blend_alpha', frame=int(strip.frame_final_end))
 
-def create_cross_fades(vse, sorted_tracks, fps, clip_strip_map):
+def create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map):
     for track in sorted_tracks:
         if track.get('type', 'video') != 'video': 
             continue
@@ -427,7 +441,7 @@ def create_cross_fades(vse, sorted_tracks, fps, clip_strip_map):
             clip_a = sorted_clips[i]
             clip_b = sorted_clips[i+1]
             
-            # Check for an adjacent, cross-fade pair
+            # Check for an adjacent, cross-transition pair
             trans_out = clip_a.get('transition_out', {{}})
             trans_in = clip_b.get('transition_in', {{}})
             
@@ -442,20 +456,73 @@ def create_cross_fades(vse, sorted_tracks, fps, clip_strip_map):
                 
             duration_frames = time_to_frame(trans_out.get('duration', 0), fps) - 1
             
-            # The transition effect needs to be on a higher channel
-            transition_channel = max(strip_a.channel, strip_b.channel) + 2
+            # The transition effect needs to be on the effects channel (highest for this track)
+            # Calculate the base channel for this track and use the effects channel
+            track_index = next(i for i, t in enumerate(sorted_tracks) if t.get('id') == track.get('id'))
+            effects_channel = track_index * 3 + 3  # Third channel of the A/B/Effects trio
             
-            # Create the cross-fade effect
-            xfade = vse.sequences.new_effect(
-                name=f"xfade_{{strip_a.name}}_{{strip_b.name}}",
-                type='GAMMA_CROSS',
-                channel=transition_channel,
-                frame_start=int(strip_b.frame_start),
-                frame_end=int(strip_b.frame_start) + duration_frames,
-                seq1=strip_a,
-                seq2=strip_b
-            )
-            xfade.input_count = 2
+            # Get transition type and create appropriate effect
+            transition_type = trans_out.get('type', 'fade')
+            effect_name = f"{{transition_type}}_{{strip_a.name}}_{{strip_b.name}}"
+            
+            if transition_type == 'fade':
+                effect = vse.sequences.new_effect(
+                    name=effect_name,
+                    type='GAMMA_CROSS',
+                    channel=effects_channel,
+                    frame_start=int(strip_b.frame_start),
+                    frame_end=int(strip_b.frame_start) + duration_frames,
+                    seq1=strip_a,
+                    seq2=strip_b
+                )
+            elif transition_type == 'wipe':
+                effect = vse.sequences.new_effect(
+                    name=effect_name,
+                    type='WIPE',
+                    channel=effects_channel,
+                    frame_start=int(strip_b.frame_start),
+                    frame_end=int(strip_b.frame_start) + duration_frames,
+                    seq1=strip_a,
+                    seq2=strip_b
+                )
+                # Configure wipe direction
+                direction = trans_out.get('direction', 'left_to_right')
+                if direction == 'left_to_right':
+                    effect.angle = 0.0
+                elif direction == 'right_to_left':
+                    effect.angle = 3.14159  # 180 degrees
+                elif direction == 'top_to_bottom':
+                    effect.angle = 1.5708   # 90 degrees
+                elif direction == 'bottom_to_top':
+                    effect.angle = 4.71239  # 270 degrees
+                    
+            elif transition_type == 'dissolve':
+                effect = vse.sequences.new_effect(
+                    name=effect_name,
+                    type='ALPHA_OVER',
+                    channel=effects_channel,
+                    frame_start=int(strip_b.frame_start),
+                    frame_end=int(strip_b.frame_start) + duration_frames,
+                    seq1=strip_a,
+                    seq2=strip_b
+                )
+                # For dissolve, animate the blend factor
+                effect.blend_alpha = 0.0
+                effect.keyframe_insert(data_path='blend_alpha', frame=int(strip_b.frame_start))
+                effect.blend_alpha = 1.0
+                effect.keyframe_insert(data_path='blend_alpha', frame=int(strip_b.frame_start) + duration_frames)
+                
+            else:
+                # Default to fade for unknown types
+                effect = vse.sequences.new_effect(
+                    name=effect_name,
+                    type='GAMMA_CROSS',
+                    channel=effects_channel,
+                    frame_start=int(strip_b.frame_start),
+                    frame_end=int(strip_b.frame_start) + duration_frames,
+                    seq1=strip_a,
+                    seq2=strip_b
+                )
 
 def main():
     print("--- Starting Blender VSE Rendering ---")

@@ -3,7 +3,7 @@
     "width": 1280,
     "height": 720,
     "fps": 30,
-    "duration": 15,
+    "duration": 25,
     "background_color": "black"
   },
   "sources": [
@@ -12,52 +12,233 @@
   ],
   "tracks": [
     {
-      "id": 2,
+      "id": 1,
       "type": "video",
       "clips": [
         {
           "source_id": "background_vid",
-          "start_time": 1,
-          "end_time": 7,
-          "transform": { "anchor": [0, 0], "position": [0, 0], "size": [1920, 1080] },
+          "start_time": 0,
+          "end_time": 6,
+          "transform": { 
+            "anchor": [0, 0], 
+            "position": [0.5, 0.5], 
+            "size": [1920, 1080],
+            "scale": 0.8
+          },
+          "transition_out": {
+            "type": "wipe",
+            "duration": 2.0,
+            "direction": "left_to_right",
+            "cross": true
+          },
+          "transition_in": {
+            "type": "fade",
+            "duration": 1.0
+          }
+        },
+        {
+          "source_id": "pic",
+          "start_time": 4,
+          "end_time": 12,
+          "transform": { 
+            "anchor": [-1, 1], 
+            "position": [-0.3, 0.3], 
+            "size": [640, 360],
+            "scale": 1.2
+          },
+          "transition_in": {
+            "type": "wipe",
+            "duration": 2.0,
+            "direction": "left_to_right",
+            "cross": true
+          },
+          "transition_out": {
+            "type": "dissolve",
+            "duration": 1.5,
+            "cross": true
+          }
+        },
+        {
+          "source_id": "background_vid",
+          "start_time": 10.5,
+          "end_time": 18,
+          "source_start": 2.0,
+          "transform": { 
+            "anchor": [1, -1], 
+            "position": [0.8, -0.2], 
+            "size": [800, 450]
+          },
+          "transition_in": {
+            "type": "dissolve",
+            "duration": 1.5,
+            "cross": true
+          },
+          "transition_out": {
+            "type": "wipe",
+            "duration": 2.5,
+            "direction": "top_to_bottom",
+            "cross": true
+          }
+        },
+        {
+          "source_id": "pic",
+          "start_time": 15.5,
+          "end_time": 25,
+          "transform": { 
+            "anchor": [0, 0], 
+            "position": [0, 0], 
+            "size": [1280, 720],
+            "scale": 1.0
+          },
+          "transition_in": {
+            "type": "wipe",
+            "duration": 2.5,
+            "direction": "top_to_bottom",
+            "cross": true
+          },
           "transition_out": {
             "type": "fade",
             "duration": 2.0
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "video",
+      "clips": [
+        {
+          "source_id": "pic",
+          "start_time": 2,
+          "end_time": 8,
+          "transform": { 
+            "anchor": [1, -1], 
+            "position": [0.7, -0.7], 
+            "size": [320, 180],
+            "scale": 0.6
+          },
+          "transition_in": {
+            "type": "wipe",
+            "duration": 1.5,
+            "direction": "right_to_left"
+          },
+          "transition_out": {
+            "type": "wipe",
+            "duration": 1.0,
+            "direction": "bottom_to_top"
+          }
+        },
+        {
+          "source_id": "background_vid",
+          "start_time": 12,
+          "end_time": 20,
+          "source_start": 1.5,
+          "transform": { 
+            "anchor": [-1, 1], 
+            "position": [-0.6, 0.6], 
+            "size": [480, 270],
+            "scale": 1.5
+          },
+          "transition_in": {
+            "type": "dissolve",
+            "duration": 1.8
+          },
+          "transition_out": {
+            "type": "fade",
+            "duration": 2.2
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "video", 
+      "clips": [
+        {
+          "source_id": "background_vid",
+          "start_time": 8,
+          "end_time": 16,
+          "source_start": 0.5,
+          "transform": { 
+            "anchor": [0, 1], 
+            "position": [0.2, 0.8], 
+            "size": [400, 225],
+            "scale": 0.9
+          },
+          "transition_in": {
+            "type": "wipe",
+            "duration": 2.0,
+            "direction": "bottom_to_top"
+          },
+          "transition_out": {
+            "type": "wipe",
+            "duration": 1.5,
+            "direction": "right_to_left"
+          }
+        },
+        {
+          "source_id": "pic",
+          "start_time": 19,
+          "end_time": 25,
+          "transform": { 
+            "anchor": [1, 0], 
+            "position": [0.9, 0.1], 
+            "size": [300, 200],
+            "scale": 2.0
           },
           "transition_in": {
             "type": "fade",
             "duration": 1.0
           },
-          "cross": true
-        },
-        {
-          "source_id": "pic",
-          "start_time": 7,
-          "end_time": 15,
-          "transform": { "anchor": [-1, -1], "position": [-1, -1], "size":[1280, 720], "scale": 1 },
-          "transition_in": {
-            "type": "fade",
-            "duration": 2.0
-          },
-          "cross": true
+          "transition_out": {
+            "type": "dissolve",
+            "duration": 3.0
+          }
         }
       ]
     },
-
-
-    
     {
       "id": 100,
       "type": "audio",
       "clips": [
-        { "source_id": "background_vid", "start_time": 0, "end_time": 15, "volume": 1.0 }
+        { 
+          "source_id": "background_vid", 
+          "start_time": 0, 
+          "end_time": 25, 
+          "volume": 0.8,
+          "fade_in": 2.0,
+          "fade_out": 3.0
+        }
       ]
     },
     {
       "id": 101,
       "type": "audio",
       "clips": [
-        { "source_id": "background_vid", "start_time": 0.5, "end_time": 4.5, "volume": 0.4, "fade_out": 4.0 }
+        { 
+          "source_id": "background_vid", 
+          "start_time": 5, 
+          "end_time": 15, 
+          "volume": 0.3,
+          "source_start": 1.0,
+          "fade_in": 1.5,
+          "fade_out": 2.5
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "type": "audio",
+      "clips": [
+        { 
+          "source_id": "background_vid", 
+          "start_time": 18, 
+          "end_time": 25, 
+          "volume": 0.5,
+          "source_start": 3.0,
+          "fade_in": 1.0,
+          "fade_out": 1.5
+        }
       ]
     }
   ]
