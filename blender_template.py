@@ -1,0 +1,347 @@
+import bpy
+import json
+import os
+
+# Embedded SWML data
+SWML_DATA = json.loads('''{swml_data}''')
+OUTPUT_PATH = r"{output_path}"
+
+# Convert sources list to a dictionary for easy lookup
+SOURCES_DICT = {s['id']: s['path'] for s in SWML_DATA['sources']}
+
+def time_to_frame(t, fps):
+    return int(round(t * fps)) + 1
+
+def setup_scene():
+    scene = bpy.context.scene
+    comp = SWML_DATA['composition']
+    scene.render.resolution_x = comp['width']
+    scene.render.resolution_y = comp['height']
+    scene.render.fps = comp['fps']
+    scene.frame_end = time_to_frame(comp['duration'], comp['fps'])
+    
+    # Output settings
+    scene.render.filepath = OUTPUT_PATH
+    scene.render.image_settings.file_format = 'FFMPEG'
+    scene.render.ffmpeg.format = "{format}"
+    scene.render.ffmpeg.codec = "{codec}"
+    if "{audio_codec}" != "NONE":
+        scene.render.ffmpeg.audio_codec = "{audio_codec}"
+
+    # Ensure VSE is the context
+    if not scene.sequence_editor:
+        scene.sequence_editor_create()
+    
+    # Clear existing sequences
+    sequences = scene.sequence_editor.sequences
+    for seq in list(sequences):
+        sequences.remove(seq)
+    
+    print("Blender scene setup complete.")
+    return scene, scene.sequence_editor
+
+def process_tracks(scene, vse):
+    comp = SWML_DATA['composition']
+    fps = comp['fps']
+    
+    # Process tracks sorted by ID (like z-index)
+    sorted_tracks = sorted(SWML_DATA['tracks'], key=lambda t: t.get('id', 0))
+    
+    # A map to store created strips for linking transitions
+    clip_strip_map = {}
+
+    for i, track in enumerate(sorted_tracks):
+        base_channel = i * 3 + 1  # Use 3 channels per track (A, B, effects)
+        
+        if track.get('type') == 'audio':
+            process_audio_track(vse, track, base_channel, fps)
+        else: # Default is 'video'
+            process_video_track(vse, track, base_channel, fps, clip_strip_map)
+
+    # Post-process to create cross-transitions
+    create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map)
+
+def process_video_track(vse, track, base_channel, fps, clip_strip_map):
+    comp = SWML_DATA['composition']
+    sources = SOURCES_DICT
+    
+    # Build a map of clip ID to clip data
+    clips_by_id = {clip['id']: clip for clip in track.get('clips', [])}
+    transitions = track.get('transitions', [])
+    
+    # Determine which clips need to be on alternate channels for cross-transitions
+    clips_on_channel_b = set()
+    for transition in transitions:
+        from_clip = transition.get('from_clip')
+        to_clip = transition.get('to_clip')
+        
+        # For cross-transitions (both clips specified), put to_clip on channel B
+        if from_clip is not None and to_clip is not None:
+            clips_on_channel_b.add(to_clip)
+    
+    # A/B roll channels for cross-fade transitions
+    channel_a = base_channel
+    channel_b = base_channel + 1
+
+    for clip_idx, clip in enumerate(track.get('clips', [])):
+        clip_id = clip['id']
+        source_id = clip['source_id']
+        source_path = sources[source_id]
+
+        start_frame = time_to_frame(clip.get('start_time', 0), fps)
+        end_frame = time_to_frame(clip.get('end_time', 0), fps)
+
+        # Choose channel based on whether this clip is involved in cross-transitions
+        current_channel = channel_b if clip_id in clips_on_channel_b else channel_a
+
+        is_image = source_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))
+
+        if is_image:
+            strip = vse.sequences.new_image(
+                name=clip_id,
+                filepath=source_path,
+                channel=current_channel,
+                frame_start=start_frame
+            )
+            strip.frame_final_end = end_frame
+            strip.frame_final_duration = end_frame - start_frame  # Ensure full duration for image
+        else: # Is a video
+            strip = vse.sequences.new_movie(
+                name=clip_id,
+                filepath=source_path,
+                channel=current_channel,
+                frame_start=start_frame
+            )
+            strip.frame_final_duration = end_frame - start_frame
+            if 'source_start' in clip:
+                strip.animation_offset_start = time_to_frame(clip['source_start'], fps)
+
+        # Store the strip for later reference using clip ID
+        clip_strip_map[clip_id] = strip
+
+        # Handle Transformations (effects channel is base_channel + 2)
+        apply_transform(vse, strip, clip, base_channel + 2)
+
+        # Handle Simple Fades (transitions with only from_clip or to_clip)
+        apply_simple_transitions(vse, strip, clip_id, transitions, fps)
+
+def process_audio_track(vse, track, base_channel, fps):
+    sources = SOURCES_DICT
+    for clip in track.get('clips', []):
+        source_path = sources[clip['source_id']]
+        start_frame = time_to_frame(clip.get('start_time', 0), fps)
+        end_frame = time_to_frame(clip.get('end_time'), fps)
+
+        # Add as a sound strip directly
+        sound_strip = vse.sequences.new_sound(
+            name="audio_{}".format(clip['source_id']),
+            filepath=source_path,
+            channel=base_channel,
+            frame_start=start_frame
+        )
+        sound_strip.frame_final_duration = end_frame - start_frame
+
+        if 'source_start' in clip:
+             sound_strip.animation_offset_start = time_to_frame(clip['source_start'], fps)
+
+        sound_strip.volume = clip.get('volume', 1.0)
+
+        # Audio fades using keyframes
+        if 'fade_in' in clip and clip['fade_in'] > 0:
+            fade_in_frames = time_to_frame(clip['fade_in'], fps) - 1
+            if fade_in_frames > 0:
+                sound_strip.volume = 0.0
+                sound_strip.keyframe_insert(data_path='volume', frame=int(sound_strip.frame_start))
+                sound_strip.volume = clip.get('volume', 1.0)
+                sound_strip.keyframe_insert(data_path='volume', frame=int(sound_strip.frame_start) + fade_in_frames)
+        
+        if 'fade_out' in clip and clip['fade_out'] > 0:
+            fade_out_frames = time_to_frame(clip['fade_out'], fps) - 1
+            if fade_out_frames > 0:
+                sound_strip.volume = clip.get('volume', 1.0)
+                sound_strip.keyframe_insert(data_path='volume', frame=int(sound_strip.frame_final_end) - fade_out_frames)
+                sound_strip.volume = 0.0
+                sound_strip.keyframe_insert(data_path='volume', frame=int(sound_strip.frame_final_end))
+
+def apply_transform(vse, strip, clip, channel):
+    comp = SWML_DATA['composition']
+    transform = clip.get('transform', {})
+    if not transform: return
+    
+    # Calculate transform values
+    comp_w, comp_h = comp['width'], comp['height']
+    source_w, source_h = strip.elements[0].orig_width, strip.elements[0].orig_height
+
+    # Get transform parameters
+    scale = transform.get('scale', 1.0)  # Default to 1.0 if not specified
+    position = transform.get('position', [0, 0])  # Cartesian: 0,0 = center
+    anchor = transform.get('anchor', [0, 0])      # Cartesian: 0,0 = center of clip
+    
+    # --- Revised Sizing Logic ---
+    if 'size' in transform:
+        # If 'size' is specified, it dictates the final dimensions.
+        # This will stretch the media if the aspect ratio differs.
+        final_w = transform['size'][0] * scale
+        final_h = transform['size'][1] * scale
+    else:
+        # If 'size' is not specified, scale the original source dimensions,
+        # which preserves the aspect ratio.
+        final_w = source_w * scale
+        final_h = source_h * scale
+
+    # Convert cartesian coordinates to pixel coordinates
+    # Position: cartesian (-1,-1)=top-left, (0,0)=center, (1,1)=bottom-right
+    pos_x_px = (position[0] + 1) / 2 * comp_w
+    pos_y_px = (1 - position[1]) / 2 * comp_h  # Flip Y for cartesian
+    
+    # Anchor: cartesian (-1,-1)=top-left of clip, (0,0)=center of clip, (1,1)=bottom-right of clip
+    anchor_x_offset = (anchor[0] + 1) / 2 * final_w
+    anchor_y_offset = (1 - anchor[1]) / 2 * final_h  # Flip Y for cartesian
+    
+    # Calculate final position
+    top_left_x = pos_x_px - anchor_x_offset
+    top_left_y = pos_y_px - anchor_y_offset
+    
+    center_x = top_left_x + final_w / 2
+    center_y = top_left_y + final_h / 2
+    
+    # Apply transform directly to the strip to avoid clipping before scaling
+    strip.transform.scale_x = final_w / source_w
+    strip.transform.scale_y = final_h / source_h
+    strip.transform.offset_x = center_x - comp_w / 2
+    strip.transform.offset_y = center_y - comp_h / 2
+    strip.blend_type = 'ALPHA_OVER'
+    
+def apply_simple_transitions(vse, strip, clip_id, transitions, fps):
+    """Apply fade in/out transitions to a single clip."""
+    for transition in transitions:
+        # Only process transitions that involve this clip as a single clip (not cross-fade)
+        from_clip = transition.get('from_clip')
+        to_clip = transition.get('to_clip')
+        
+        # Simple fade out (clip has transition_out)
+        if from_clip == clip_id and to_clip is None:
+            effect_type = transition.get('effect', 'fade')
+            duration = transition.get('duration', 1.0)
+            duration_frames = time_to_frame(duration, fps)
+            
+            if duration_frames > 0:
+                strip.blend_alpha = 1.0
+                strip.keyframe_insert(data_path='blend_alpha', frame=int(strip.frame_final_end) - duration_frames)
+                strip.blend_alpha = 0.0
+                strip.keyframe_insert(data_path='blend_alpha', frame=int(strip.frame_final_end))
+            
+        # Simple fade in (clip has transition_in)
+        elif to_clip == clip_id and from_clip is None:
+            effect_type = transition.get('effect', 'fade')
+            duration = transition.get('duration', 1.0)
+            duration_frames = time_to_frame(duration, fps)
+            
+            if duration_frames > 0:
+                strip.blend_alpha = 0.0
+                strip.keyframe_insert(data_path='blend_alpha', frame=int(strip.frame_start))
+                strip.blend_alpha = 1.0
+                strip.keyframe_insert(data_path='blend_alpha', frame=int(strip.frame_start) + duration_frames)
+
+def create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map):
+    for track in sorted_tracks:
+        if track.get('type', 'video') != 'video': 
+            continue
+        
+        transitions = track.get('transitions', [])
+        
+        # Process cross-transitions (those with both from_clip and to_clip)
+        for transition in transitions:
+            from_clip_id = transition.get('from_clip')
+            to_clip_id = transition.get('to_clip')
+            
+            # Skip if not a cross-transition
+            if from_clip_id is None or to_clip_id is None:
+                continue
+            
+            strip_a = clip_strip_map.get(from_clip_id)
+            strip_b = clip_strip_map.get(to_clip_id)
+
+            if not strip_a or not strip_b: 
+                continue
+                
+            duration_frames = time_to_frame(transition.get('duration', 1.0), fps)
+            
+            # The transition effect needs to be on the effects channel (highest for this track)
+            # Calculate the base channel for this track and use the effects channel
+            track_index = next(i for i, t in enumerate(sorted_tracks) if t.get('id') == track.get('id'))
+            effects_channel = track_index * 3 + 3  # Third channel of the A/B/Effects trio
+            
+            # Get transition type and create appropriate effect
+            transition_type = transition.get('effect', 'fade')
+            effect_name = f"{transition_type}_{from_clip_id}_{to_clip_id}"
+            
+            if transition_type == 'fade':
+                effect = vse.sequences.new_effect(
+                    name=effect_name,
+                    type='GAMMA_CROSS',
+                    channel=effects_channel,
+                    frame_start=int(strip_b.frame_start),
+                    frame_end=int(strip_b.frame_start) + duration_frames,
+                    seq1=strip_a,
+                    seq2=strip_b
+                )
+            elif transition_type == 'wipe':
+                effect = vse.sequences.new_effect(
+                    name=effect_name,
+                    type='WIPE',
+                    channel=effects_channel,
+                    frame_start=int(strip_b.frame_start),
+                    frame_end=int(strip_b.frame_start) + duration_frames,
+                    seq1=strip_a,
+                    seq2=strip_b
+                )
+                # Configure wipe direction
+                direction = transition.get('direction', 'left_to_right')
+                if direction == 'left_to_right':
+                    effect.angle = 0.0
+                elif direction == 'right_to_left':
+                    effect.angle = 3.14159  # 180 degrees
+                elif direction == 'top_to_bottom':
+                    effect.angle = 1.5708   # 90 degrees
+                elif direction == 'bottom_to_top':
+                    effect.angle = 4.71239  # 270 degrees
+                    
+            elif transition_type == 'dissolve':
+                effect = vse.sequences.new_effect(
+                    name=effect_name,
+                    type='ALPHA_OVER',
+                    channel=effects_channel,
+                    frame_start=int(strip_b.frame_start),
+                    frame_end=int(strip_b.frame_start) + duration_frames,
+                    seq1=strip_a,
+                    seq2=strip_b
+                )
+                # For dissolve, animate the blend factor
+                effect.blend_alpha = 0.0
+                effect.keyframe_insert(data_path='blend_alpha', frame=int(strip_b.frame_start))
+                effect.blend_alpha = 1.0
+                effect.keyframe_insert(data_path='blend_alpha', frame=int(strip_b.frame_start) + duration_frames)
+                
+            else:
+                # Default to fade for unknown types
+                effect = vse.sequences.new_effect(
+                    name=effect_name,
+                    type='GAMMA_CROSS',
+                    channel=effects_channel,
+                    frame_start=int(strip_b.frame_start),
+                    frame_end=int(strip_b.frame_start) + duration_frames,
+                    seq1=strip_a,
+                    seq2=strip_b
+                )
+
+def main():
+    print("--- Starting Blender VSE Rendering ---")
+    scene, vse = setup_scene()
+    process_tracks(scene, vse)
+    print("Track processing complete. Starting final render...")
+    bpy.ops.render.render(animation=True, write_still=True)
+    print("--- Blender VSE Rendering Finished ---")
+
+if __name__ == "__main__":
+    main()
