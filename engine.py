@@ -119,11 +119,7 @@ class SwimlanesEngine:
                 if not isinstance(cartesian, list) or len(cartesian) != 2:
                     raise SwmlError(f"Transform 'anchor.cartesian' must be a list of two numbers in clip '{clip_id}' in track {track_id}")
         
-        # Validate rotation property
-        if 'rotation' in transform:
-            rotation = transform['rotation']
-            if not isinstance(rotation, (int, float)):
-                raise SwmlError(f"Transform 'rotation' must be a number in clip '{clip_id}' in track {track_id}")
+        # Note: Rotation property has been removed
 
     def _validate_transitions(self, tracks: List[Dict[str, Any]]) -> None:
         """

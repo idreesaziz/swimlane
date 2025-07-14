@@ -88,15 +88,9 @@ The `anchor` property defines the reference point on the clip itself that will b
 }
 ```
 
-### Rotation
+## Complete SWML Example
 
-Rotation is specified in degrees:
-
-```json
-"transform": {
-  "rotation": 90  // In degrees
-}
-```
+The rotation is applied after sizing but before positioning, and rotates the clip around the specified anchor point. This enables precise control over how clips rotate within the composition.
 
 ### Complete Example
 

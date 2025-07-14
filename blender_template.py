@@ -1,6 +1,15 @@
 import bpy
 import json
 import os
+import math
+
+# -------------------------------------------
+# SWIMLANE ENGINE BLENDER TEMPLATE
+# -------------------------------------------
+#
+# This template handles the conversion of SWML data to Blender VSE instructions.
+# 
+# -------------------------------------------
 
 # Embedded SWML data
 SWML_DATA = json.loads('''{swml_data}''')
@@ -236,13 +245,7 @@ def apply_transform(vse, strip, clip, channel):
     center_x = top_left_x + final_w / 2
     center_y = top_left_y + final_h / 2
     
-    # Apply rotation if specified (in degrees)
-    rotation = transform.get('rotation', 0)
-    if rotation and hasattr(strip, 'use_rotation'):
-        strip.use_rotation = True
-        strip.rotation_start = rotation * (3.14159265 / 180.0)  # Convert to radians
-    
-    # Apply transform directly to the strip to avoid clipping before scaling
+    # For simple transforms, apply directly to the strip
     strip.transform.scale_x = final_w / source_w
     strip.transform.scale_y = final_h / source_h
     strip.transform.offset_x = center_x - comp_w / 2
