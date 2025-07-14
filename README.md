@@ -1,27 +1,27 @@
-# Swimlanes Engine
+# swimlane Engine
 
 **A declarative video rendering engine powered by Blender's Video Sequence Editor (VSE)**
 
-Transform your video editing workflow with code! Swimlanes Engine lets you create professional videos using simple JSON configuration files. No more clicking through timelines—just describe what you want, and let Blender do the heavy lifting.
+swimlane Engine is a programmatic video editing tool that allows you to define video compositions using a structured JSON format called SWML (Swimlane Markup Language). The engine processes these definitions through Blender's Video Sequence Editor to produce rendered video files, enabling automated video creation workflows and template-based content generation.
 
-## 🎯 Perfect For
+## Use Cases
 
 - **Content Creators**: Automate repetitive video editing tasks
-- **Developers**: Build dynamic video generation into your applications
+- **Developers**: Build dynamic video generation into applications
 - **Marketers**: Create template-based video campaigns
 - **Educators**: Generate educational content programmatically
 - **Social Media**: Batch-create videos with consistent formatting
 
-## ✨ Key Features
+## Key Features
 
-- **🎨 Declarative**: Define your entire video in a clean JSON file
-- **🔧 Blender-Powered**: Leverages professional-grade rendering capabilities
-- **📚 Layer-Based**: Intuitive track system with proper z-indexing
-- **🎭 Rich Transitions**: Fade, wipe, and dissolve effects between clips
-- **🎵 Audio Support**: Full audio mixing with volume and fade controls
-- **🎥 Multiple Formats**: Export to MP4, MOV, WebM, and more
+- **Declarative**: Define your entire video in a clean JSON file
+- **Blender-Powered**: Leverages professional-grade rendering capabilities
+- **Layer-Based**: Intuitive track system with proper z-indexing
+- **Rich Transitions**: Fade, wipe, and dissolve effects between clips
+- **Audio Support**: Full audio mixing with volume and fade controls
+- **Multiple Formats**: Export to MP4, MOV, WebM, and more
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -109,7 +109,7 @@ python engine.py my_video.swml output.mp4
 
 That's it! You've just created a video with a background and a logo that fades in and out.
 
-## 📚 Tutorials
+## Tutorials
 
 ### Tutorial 1: Understanding the Basics
 
@@ -253,7 +253,7 @@ Add music and sound effects to your videos:
 }
 ```
 
-## 🎬 Real-World Examples
+## Real-World Examples
 
 ### Example 1: Social Media Post
 Create a 15-second Instagram-style video:
@@ -376,7 +376,7 @@ Create a tutorial video with multiple segments:
 }
 ```
 
-## 🔧 Advanced Features
+## Advanced Features
 
 ### Custom Sizing and Scaling
 
@@ -413,14 +413,14 @@ Create a tutorial video with multiple segments:
 ]
 ```
 
-## 🎵 Audio Best Practices
+## Audio Best Practices
 
 1. **Background Music**: Use volume around 0.3-0.5 to avoid overpowering
 2. **Fade Transitions**: Always use fade-in/out for smooth audio
 3. **Multiple Audio Tracks**: Use different track IDs for different audio elements
 4. **Volume Levels**: Test different volumes - 1.0 is often too loud
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -443,7 +443,7 @@ Create a tutorial video with multiple segments:
 3. Test with simple examples first
 4. Check the console output for detailed error messages
 
-## 📝 SWML Reference
+## SWML Reference
 
 ### Composition Object
 ```json
@@ -518,7 +518,7 @@ Create a tutorial video with multiple segments:
 }
 ```
 
-## 🚀 Usage
+## Usage
 
 ```bash
 # Basic usage
@@ -532,10 +532,6 @@ python engine.py project.swml output.mov
 python engine.py project.swml output.webm
 ```
 
-## 📄 License
+## License
 
-This project is open source. Feel free to use it in your projects!
-
----
-
-**Happy video editing!** 🎬
+This project is open source. Feel free to use it in your projects.
