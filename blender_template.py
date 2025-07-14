@@ -172,38 +172,75 @@ def apply_transform(vse, strip, clip, channel):
     comp_w, comp_h = comp['width'], comp['height']
     source_w, source_h = strip.elements[0].orig_width, strip.elements[0].orig_height
 
-    # Get transform parameters
-    scale = transform.get('scale', 1.0)  # Default to 1.0 if not specified
-    position = transform.get('position', [0, 0])  # Cartesian: 0,0 = center
-    anchor = transform.get('anchor', [0, 0])      # Cartesian: 0,0 = center of clip
+    # --- Process size transformation (explicit & sequential model) ---
+    size_transform = transform.get('size', {})
     
-    # --- Revised Sizing Logic ---
-    if 'size' in transform:
-        # If 'size' is specified, it dictates the final dimensions.
-        # This will stretch the media if the aspect ratio differs.
-        final_w = transform['size'][0] * scale
-        final_h = transform['size'][1] * scale
-    else:
-        # If 'size' is not specified, scale the original source dimensions,
-        # which preserves the aspect ratio.
-        final_w = source_w * scale
-        final_h = source_h * scale
+    # Default final dimensions to source dimensions
+    final_w, final_h = source_w, source_h
+    
+    # Step 1: Check for pixels size (exact dimensions)
+    if isinstance(size_transform, dict) and 'pixels' in size_transform:
+        pixels = size_transform['pixels']
+        if isinstance(pixels, list) and len(pixels) == 2:
+            final_w, final_h = pixels[0], pixels[1]
+    
+    # Step 2: Apply scale (if present)
+    scale = [1.0, 1.0]  # Default scale
+    if isinstance(size_transform, dict) and 'scale' in size_transform:
+        scale_value = size_transform['scale']
+        if isinstance(scale_value, list) and len(scale_value) == 2:
+            scale = scale_value
+    
+    # Apply scale to dimensions
+    final_w *= scale[0]
+    final_h *= scale[1]
 
-    # Convert cartesian coordinates to pixel coordinates
-    # Position: cartesian (-1,-1)=top-left, (0,0)=center, (1,1)=bottom-right
-    pos_x_px = (position[0] + 1) / 2 * comp_w
-    pos_y_px = (1 - position[1]) / 2 * comp_h  # Flip Y for cartesian
+    # --- Process position (explicit model) ---
+    position_transform = transform.get('position', {})
+    position_px = [comp_w / 2, comp_h / 2]  # Default: center of composition
     
-    # Anchor: cartesian (-1,-1)=top-left of clip, (0,0)=center of clip, (1,1)=bottom-right of clip
-    anchor_x_offset = (anchor[0] + 1) / 2 * final_w
-    anchor_y_offset = (1 - anchor[1]) / 2 * final_h  # Flip Y for cartesian
+    if isinstance(position_transform, dict):
+        if 'pixels' in position_transform:
+            # Direct pixel coordinates (from top-left)
+            pixels = position_transform['pixels']
+            if isinstance(pixels, list) and len(pixels) == 2:
+                position_px = pixels
+        elif 'cartesian' in position_transform:
+            # Cartesian coordinates: [-1,-1] = top-left, [0,0] = center, [1,1] = bottom-right
+            cartesian = position_transform['cartesian']
+            if isinstance(cartesian, list) and len(cartesian) == 2:
+                position_px[0] = (cartesian[0] + 1) / 2 * comp_w
+                position_px[1] = (1 - cartesian[1]) / 2 * comp_h  # Flip Y for cartesian
+    
+    # --- Process anchor (explicit model) ---
+    anchor_transform = transform.get('anchor', {})
+    anchor_offset = [final_w / 2, final_h / 2]  # Default: center of the clip
+    
+    if isinstance(anchor_transform, dict):
+        if 'pixels' in anchor_transform:
+            # Direct pixel coordinates (from top-left of clip)
+            pixels = anchor_transform['pixels']
+            if isinstance(pixels, list) and len(pixels) == 2:
+                anchor_offset = pixels
+        elif 'cartesian' in anchor_transform:
+            # Cartesian coordinates: [-1,-1] = top-left, [0,0] = center, [1,1] = bottom-right of clip
+            cartesian = anchor_transform['cartesian']
+            if isinstance(cartesian, list) and len(cartesian) == 2:
+                anchor_offset[0] = (cartesian[0] + 1) / 2 * final_w
+                anchor_offset[1] = (1 - cartesian[1]) / 2 * final_h  # Flip Y for cartesian
     
     # Calculate final position
-    top_left_x = pos_x_px - anchor_x_offset
-    top_left_y = pos_y_px - anchor_y_offset
+    top_left_x = position_px[0] - anchor_offset[0]
+    top_left_y = position_px[1] - anchor_offset[1]
     
     center_x = top_left_x + final_w / 2
     center_y = top_left_y + final_h / 2
+    
+    # Apply rotation if specified (in degrees)
+    rotation = transform.get('rotation', 0)
+    if rotation and hasattr(strip, 'use_rotation'):
+        strip.use_rotation = True
+        strip.rotation_start = rotation * (3.14159265 / 180.0)  # Convert to radians
     
     # Apply transform directly to the strip to avoid clipping before scaling
     strip.transform.scale_x = final_w / source_w

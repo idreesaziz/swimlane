@@ -26,19 +26,28 @@
           "start_time": 0,
           "end_time": 6,
           "transform": {
-            "anchor": [
-              0,
-              0
-            ],
-            "position": [
-              0.5,
-              0.5
-            ],
-            "size": [
-              1920,
-              1080
-            ],
-            "scale": 0.8
+            "size": {
+              "pixels": [
+                1920,
+                1080
+              ],
+              "scale": [
+                0.8,
+                0.8
+              ]
+            },
+            "position": {
+              "cartesian": [
+                0.5,
+                0.5
+              ]
+            },
+            "anchor": {
+              "cartesian": [
+                0,
+                0
+              ]
+            }
           },
           "id": "background_vid_1_1"
         },
@@ -47,19 +56,28 @@
           "start_time": 4,
           "end_time": 12,
           "transform": {
-            "anchor": [
-              -1,
-              1
-            ],
-            "position": [
-              -0.3,
-              0.3
-            ],
-            "size": [
-              640,
-              360
-            ],
-            "scale": 1.2
+            "size": {
+              "pixels": [
+                640,
+                360
+              ],
+              "scale": [
+                1.2,
+                1.2
+              ]
+            },
+            "position": {
+              "cartesian": [
+                -0.3,
+                0.3
+              ]
+            },
+            "anchor": {
+              "cartesian": [
+                -1,
+                1
+              ]
+            }
           },
           "id": "pic_1_2"
         },
@@ -69,18 +87,24 @@
           "end_time": 18,
           "source_start": 2.0,
           "transform": {
-            "anchor": [
-              1,
-              -1
-            ],
-            "position": [
-              0.8,
-              -0.2
-            ],
-            "size": [
-              800,
-              450
-            ]
+            "size": {
+              "pixels": [
+                800,
+                450
+              ]
+            },
+            "position": {
+              "cartesian": [
+                0.8,
+                -0.2
+              ]
+            },
+            "anchor": {
+              "cartesian": [
+                1,
+                -1
+              ]
+            }
           },
           "id": "background_vid_1_3"
         },
@@ -89,19 +113,28 @@
           "start_time": 15.5,
           "end_time": 25,
           "transform": {
-            "anchor": [
-              0,
-              0
-            ],
-            "position": [
-              0,
-              0
-            ],
-            "size": [
-              1280,
-              720
-            ],
-            "scale": 1.0
+            "size": {
+              "pixels": [
+                1280,
+                720
+              ],
+              "scale": [
+                1.0,
+                1.0
+              ]
+            },
+            "position": {
+              "cartesian": [
+                0,
+                0
+              ]
+            },
+            "anchor": {
+              "cartesian": [
+                0,
+                0
+              ]
+            }
           },
           "id": "pic_1_4"
         }
@@ -168,19 +201,28 @@
           "start_time": 2,
           "end_time": 8,
           "transform": {
-            "anchor": [
-              1,
-              -1
-            ],
-            "position": [
-              0.7,
-              -0.7
-            ],
-            "size": [
-              320,
-              180
-            ],
-            "scale": 0.6
+            "size": {
+              "pixels": [
+                320,
+                180
+              ],
+              "scale": [
+                0.6,
+                0.6
+              ]
+            },
+            "position": {
+              "cartesian": [
+                0.7,
+                -0.7
+              ]
+            },
+            "anchor": {
+              "cartesian": [
+                1,
+                -1
+              ]
+            }
           },
           "id": "pic_2_1"
         },
@@ -190,19 +232,28 @@
           "end_time": 20,
           "source_start": 1.5,
           "transform": {
-            "anchor": [
-              -1,
-              1
-            ],
-            "position": [
-              -0.6,
-              0.6
-            ],
-            "size": [
-              480,
-              270
-            ],
-            "scale": 1.5
+            "size": {
+              "pixels": [
+                480,
+                270
+              ],
+              "scale": [
+                1.5,
+                1.5
+              ]
+            },
+            "position": {
+              "cartesian": [
+                -0.6,
+                0.6
+              ]
+            },
+            "anchor": {
+              "cartesian": [
+                -1,
+                1
+              ]
+            }
           },
           "id": "background_vid_2_2"
         }
@@ -242,19 +293,28 @@
           "end_time": 16,
           "source_start": 0.5,
           "transform": {
-            "anchor": [
-              0,
-              1
-            ],
-            "position": [
-              0.2,
-              0.8
-            ],
-            "size": [
-              400,
-              225
-            ],
-            "scale": 0.9
+            "size": {
+              "pixels": [
+                400,
+                225
+              ],
+              "scale": [
+                0.9,
+                0.9
+              ]
+            },
+            "position": {
+              "cartesian": [
+                0.2,
+                0.8
+              ]
+            },
+            "anchor": {
+              "cartesian": [
+                0,
+                1
+              ]
+            }
           },
           "id": "background_vid_3_1"
         },
@@ -263,19 +323,28 @@
           "start_time": 19,
           "end_time": 25,
           "transform": {
-            "anchor": [
-              1,
-              0
-            ],
-            "position": [
-              0.9,
-              0.1
-            ],
-            "size": [
-              300,
-              200
-            ],
-            "scale": 2.0
+            "size": {
+              "pixels": [
+                300,
+                200
+              ],
+              "scale": [
+                2.0,
+                2.0
+              ]
+            },
+            "position": {
+              "cartesian": [
+                0.9,
+                0.1
+              ]
+            },
+            "anchor": {
+              "cartesian": [
+                1,
+                0
+              ]
+            }
           },
           "id": "pic_3_2"
         }

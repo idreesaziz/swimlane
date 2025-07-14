@@ -46,9 +46,88 @@ class SwimlanesEngine:
                 raise SwmlError(f"'{self.blender_executable}' not found. Please ensure Blender is installed and in your system's PATH, or specify the path.")
             raise SwmlError(f"Failed to probe media file {file_path}. It may be corrupt or an unsupported format. Error: {e}")
 
+    def _validate_transform(self, transform, track_id, clip_id):
+        """
+        Validate that a transform object follows the new explicit and sequential model.
+        """
+        if not transform:
+            return  # Empty transform is valid
+            
+        # Validate size property
+        if 'size' in transform:
+            size = transform['size']
+            if not isinstance(size, dict):
+                raise SwmlError(f"Transform 'size' must be an object in clip '{clip_id}' in track {track_id}")
+                
+            # Check pixels is valid if present
+            if 'pixels' in size:
+                pixels = size['pixels']
+                if not isinstance(pixels, list) or len(pixels) != 2:
+                    raise SwmlError(f"Transform 'size.pixels' must be a list of two numbers in clip '{clip_id}' in track {track_id}")
+            
+            # Check scale is valid if present
+            if 'scale' in size:
+                scale = size['scale']
+                if not isinstance(scale, list) or len(scale) != 2:
+                    raise SwmlError(f"Transform 'size.scale' must be a list of two numbers in clip '{clip_id}' in track {track_id}")
+        
+        # Validate position property
+        if 'position' in transform:
+            position = transform['position']
+            if not isinstance(position, dict):
+                raise SwmlError(f"Transform 'position' must be an object in clip '{clip_id}' in track {track_id}")
+                
+            # Must choose exactly one: pixels or cartesian
+            if 'pixels' in position and 'cartesian' in position:
+                raise SwmlError(f"Transform 'position' must use either 'pixels' or 'cartesian', not both in clip '{clip_id}' in track {track_id}")
+                
+            if 'pixels' not in position and 'cartesian' not in position:
+                raise SwmlError(f"Transform 'position' must specify either 'pixels' or 'cartesian' in clip '{clip_id}' in track {track_id}")
+                
+            # Validate the format
+            if 'pixels' in position:
+                pixels = position['pixels']
+                if not isinstance(pixels, list) or len(pixels) != 2:
+                    raise SwmlError(f"Transform 'position.pixels' must be a list of two numbers in clip '{clip_id}' in track {track_id}")
+                    
+            if 'cartesian' in position:
+                cartesian = position['cartesian']
+                if not isinstance(cartesian, list) or len(cartesian) != 2:
+                    raise SwmlError(f"Transform 'position.cartesian' must be a list of two numbers in clip '{clip_id}' in track {track_id}")
+        
+        # Validate anchor property
+        if 'anchor' in transform:
+            anchor = transform['anchor']
+            if not isinstance(anchor, dict):
+                raise SwmlError(f"Transform 'anchor' must be an object in clip '{clip_id}' in track {track_id}")
+                
+            # Must choose exactly one: pixels or cartesian
+            if 'pixels' in anchor and 'cartesian' in anchor:
+                raise SwmlError(f"Transform 'anchor' must use either 'pixels' or 'cartesian', not both in clip '{clip_id}' in track {track_id}")
+                
+            if 'pixels' not in anchor and 'cartesian' not in anchor:
+                raise SwmlError(f"Transform 'anchor' must specify either 'pixels' or 'cartesian' in clip '{clip_id}' in track {track_id}")
+                
+            # Validate the format
+            if 'pixels' in anchor:
+                pixels = anchor['pixels']
+                if not isinstance(pixels, list) or len(pixels) != 2:
+                    raise SwmlError(f"Transform 'anchor.pixels' must be a list of two numbers in clip '{clip_id}' in track {track_id}")
+                    
+            if 'cartesian' in anchor:
+                cartesian = anchor['cartesian']
+                if not isinstance(cartesian, list) or len(cartesian) != 2:
+                    raise SwmlError(f"Transform 'anchor.cartesian' must be a list of two numbers in clip '{clip_id}' in track {track_id}")
+        
+        # Validate rotation property
+        if 'rotation' in transform:
+            rotation = transform['rotation']
+            if not isinstance(rotation, (int, float)):
+                raise SwmlError(f"Transform 'rotation' must be a number in clip '{clip_id}' in track {track_id}")
+
     def _validate_transitions(self, tracks: List[Dict[str, Any]]) -> None:
         """
-        Validate transition logic for all video tracks using the new clip-reference model.
+        Validate transition logic for all video tracks using the clip-reference model.
         """
         for track in tracks:
             if track.get('type', 'video') != 'video':
@@ -69,6 +148,10 @@ class SwimlanesEngine:
             for clip in clips:
                 if not clip.get('id'):
                     raise SwmlError(f"All clips must have an 'id' field in track {track.get('id', 'unknown')}")
+                
+                # Validate transform if present
+                if 'transform' in clip:
+                    self._validate_transform(clip['transform'], track.get('id', 'unknown'), clip.get('id'))
             
             # Validate transitions
             for transition in transitions:
