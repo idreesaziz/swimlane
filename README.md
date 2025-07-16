@@ -1,4 +1,4 @@
-# swimlane Engine
+# Swimlane Engine
 
 **A declarative video rendering engine powered by Blender's Video Sequence Editor (VSE)**
 
