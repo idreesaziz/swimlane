@@ -1,0 +1,8 @@
+include LICENSE
+include README.md
+include requirements.txt
+include blender_template.py
+include engine.py
+include create_test_image.py
+recursive-include examples *
+recursive-include swimlane *

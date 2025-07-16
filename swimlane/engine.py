@@ -363,21 +363,9 @@ class SwimlanesEngine:
 
 
 def main():
-    """Main entry point when called as a script or via the 'swimlane' command."""
-    script_name = os.path.basename(sys.argv[0])
-    command_name = "swimlane" if "swimlane" in script_name else "python engine.py"
-    
-    if len(sys.argv) < 3 or len(sys.argv) > 4 or "--help" in sys.argv or "-h" in sys.argv:
-        print("Swimlane Engine - SWML Video Renderer")
-        print(f"Usage: {command_name} <input.swml> <output.mp4> [path/to/blender]")
-        print("\nArguments:")
-        print("  input.swml     Path to the SWML (Swimlane Markup Language) file")
-        print("  output.mp4     Path for the output video file (can be .mp4, .mov, or .webm)")
-        print("  path/to/blender  Optional path to the Blender executable (default: 'blender')")
-        if "--help" in sys.argv or "-h" in sys.argv:
-            sys.exit(0)
-        else:
-            sys.exit(1)
+    if len(sys.argv) < 3 or len(sys.argv) > 4:
+        print("Usage: python engine.py <input.swml> <output.mp4> [path/to/blender]")
+        sys.exit(1)
     
     swml_path = sys.argv[1]
     output_path = sys.argv[2]

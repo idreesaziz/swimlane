@@ -31,6 +31,26 @@ swimlane Engine is a programmatic video editing tool that allows you to define v
 
 ### Installation
 
+#### Option 1: Install from PyPI (Recommended)
+
+```bash
+# Install the swimlane package
+pip install swimlane
+```
+
+#### Option 2: Install from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/idreesaziz/swimlane.git
+cd swimlane
+
+# Install the package in development mode
+pip install -e .
+```
+
+#### Option 3: Manual Installation
+
 ```bash
 # Install the required Python library
 pip install ffmpeg-python
@@ -103,11 +123,50 @@ my-project/
 ```
 
 **Step 3**: Render your video
+
+#### Using the installed package:
+
+```bash
+# After installing with pip
+swimlane my_video.swml output.mp4
+```
+
+#### Using the script directly:
+
 ```bash
 python engine.py my_video.swml output.mp4
 ```
 
 That's it! You've just created a video with a background and a logo that fades in and out.
+
+### Using the Package in Your Python Code
+
+You can also use the Swimlane engine directly in your Python code:
+
+```python
+from swimlane import SwimlanesEngine
+
+# Initialize the engine
+engine = SwimlanesEngine()
+
+# Load and validate a SWML file
+engine.load_swml('my_video.swml')
+
+# Render the video
+engine.render('output.mp4')
+```
+
+## Creating Test Media
+
+The package includes a utility to create test images for development:
+
+```bash
+# Generate a test image
+swimlane-test-image
+
+# Specify a custom output path
+swimlane-test-image my_custom_path/test_image.png
+```
 
 ## Tutorials
 
