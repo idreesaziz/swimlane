@@ -144,10 +144,10 @@ That's it! You've just created a video with a background and a logo that fades i
 You can also use the Swimlane engine directly in your Python code:
 
 ```python
-from swimlane import SwimlanesEngine
+from swimlane import SwimlaneEngine
 
 # Initialize the engine
-engine = SwimlanesEngine()
+engine = SwimlaneEngine()
 
 # Load and validate a SWML file
 engine.load_swml('my_video.swml')

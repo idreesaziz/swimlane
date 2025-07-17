@@ -52,10 +52,10 @@ swimlane your_composition.swml output.mp4 path/to/blender
 ### As a Python library
 
 ```python
-from swimlane import SwimlanesEngine
+from swimlane import SwimlansEngine
 
 # Initialize the engine
-engine = SwimlanesEngine('your_composition.swml', 'output.mp4')
+engine = SwimlaneEngine('your_composition.swml', 'output.mp4')
 
 # Render the video
 engine.render()

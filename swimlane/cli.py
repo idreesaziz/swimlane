@@ -22,14 +22,14 @@ def main():
             sys.exit(1)
     
     # Import is done here to ensure fast startup for help message
-    from swimlane.engine import SwimlanesEngine, SwmlError
+    from swimlane.engine import SwimlaneEngine, SwmlError
     
     swml_path = sys.argv[1]
     output_path = sys.argv[2]
     blender_exec = sys.argv[3] if len(sys.argv) == 4 else 'blender'
     
     try:
-        engine = SwimlanesEngine(swml_path, output_path, blender_executable=blender_exec)
+        engine = SwimlaneEngine(swml_path, output_path, blender_executable=blender_exec)
         engine.render()
     except SwmlError as e:
         print(f"\nERROR: {e}", file=sys.stderr)

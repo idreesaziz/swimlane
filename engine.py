@@ -520,7 +520,7 @@ class SwimlaneEngine:
     def render(self):
         """Main rendering function"""
         try:
-            print("--- Swimlanes Engine: Blender VSE Mode ---")
+            print("--- Swimlane Engine: Blender VSE Mode ---")
             print(f"1. Parsing SWML file: {self.swml_path}")
             self.parse_swml() # This will populate self.swml_data and apply defaults/coercions
 
