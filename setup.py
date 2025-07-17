@@ -20,7 +20,7 @@ except (FileNotFoundError, UnicodeDecodeError):
 
 setup(
     name="swimlane",
-    version="0.1.1",
+    version="0.1.2",
     author="idreesaziz",
     author_email="your.email@example.com",  # Replace with your actual email
     description="A declarative video rendering engine powered by Blender's Video Sequence Editor (VSE)",
