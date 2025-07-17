@@ -34,7 +34,7 @@ class SourceInfo(object):
         self.has_video = has_video
         self.is_image = is_image
 
-class SwimlanesEngine:
+class SwimlaneEngine:
     DEFAULT_IMAGE_DURATION_SECONDS = 5.0
 
     def __init__(self, swml_path: str, output_path: str, blender_executable: str = 'blender'):
@@ -623,7 +623,7 @@ def main():
     blender_exec = sys.argv[3] if len(sys.argv) == 4 else 'blender'
     
     try:
-        engine = SwimlanesEngine(swml_path, output_path, blender_executable=blender_exec)
+        engine = SwimlaneEngine(swml_path, output_path, blender_executable=blender_exec)
         engine.render()
     except KeyboardInterrupt:
         print("\nRendering cancelled by user", file=sys.stderr)
