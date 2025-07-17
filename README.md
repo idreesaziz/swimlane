@@ -237,7 +237,7 @@ The transform system gives you precise control over clip placement:
 #### Picture-in-Picture (Bottom Right)
 ```json
 "transform": {
-  "size": { "scale": [0.3, 0.3] },              // 30% of original size
+  "size": { "scale": [0.3, 0.3] },              // 9% of original size
   "position": { "pixels": [1820, 980] },        // 100px from edges
   "anchor": { "cartesian": [1, -1] }            // Bottom-right of clip
 }
