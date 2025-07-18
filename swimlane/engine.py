@@ -1,4 +1,3 @@
-
 """
 Swimlane Engine - A declarative video rendering engine using Blender's VSE
 Parses SWML (Swimlane Markup Language) files and generates videos
@@ -342,7 +341,7 @@ class SwimlaneEngine:
                 all_clips_map[clip['id']] = clip
 
         for track_idx, track in enumerate(data['tracks']):
-            if track.get('type', 'video') != 'video':
+            if track.get('type', 'video') != 'video': 
                 continue
             
             track_id = track.get('id', f"track_{track_idx}")
@@ -441,9 +440,10 @@ class SwimlaneEngine:
                 comp[key] = max(1, int(comp[key])) # Coerce to minimum 1 pixel/fps
 
         # Handle composition duration: optional, calculate if missing, clamp if unreasonable
+        # Temporarily set to None if missing or invalid, so _validate_tracks_and_clips can run first
         if 'duration' not in comp:
             self._warn("Composition duration not specified. Will be calculated from the maximum end time of all clips.")
-            data['composition']['duration'] = None # Flag for Blender script to calculate
+            data['composition']['duration'] = None # Flag for internal calculation
         elif not isinstance(comp['duration'], (int, float)) or comp['duration'] <= 0:
             self._warn(f"Composition duration '{comp['duration']}' is invalid or non-positive. Setting to a default of 10.0 seconds.")
             data['composition']['duration'] = 10.0 # Coerce to a minimum reasonable value
@@ -471,11 +471,27 @@ class SwimlaneEngine:
             self._probe_source(source['path'])
 
         # --- Validate Tracks and Clips (including end_time defaulting) ---
+        # This must run BEFORE calculating overall duration, as it populates clip end_times
         self._validate_tracks_and_clips(data)
 
         # --- Validate Transitions (after all clips are processed and have final times) ---
         self._validate_transitions(data)
         
+        # NEW: Calculate composition duration if it was not explicitly set (i.e., it's None)
+        # This must happen AFTER _validate_tracks_and_clips ensures all clip end_times are numeric.
+        if data['composition'].get('duration') is None:
+            max_clip_end_time = 0.0
+            for track in data['tracks']:
+                # Only consider video/audio tracks for duration calculation
+                if track.get('type') in ['video', 'audio']: # Audio tracks also contribute to overall duration
+                    for clip in track.get('clips', []):
+                        # clip['end_time'] is guaranteed to be a number by _validate_tracks_and_clips
+                        max_clip_end_time = max(max_clip_end_time, clip['end_time'])
+            
+            # Ensure a minimal duration even if no clips, to avoid issues with 0 duration in Blender
+            data['composition']['duration'] = max(max_clip_end_time, 0.001)
+
+
         self.swml_data = data
         return data
 

@@ -5,4 +5,4 @@ Parses SWML (Swimlane Markup Language) files and generates videos
 
 from .engine import SwimlaneEngine, SwmlError, main
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"

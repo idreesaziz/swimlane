@@ -16,7 +16,7 @@
     "fps": 30,
     // "duration": 0, // Uncomment this to test duration coercion (0 becomes 10.0s)
     // "duration": -5, // Uncomment this to test negative duration coercion (-5 becomes 10.0s)
-    "duration": null, // Uncomment this to test duration being calculated from max clip end time
+    // "duration": null, // Uncomment this to test duration being calculated from max clip end time
     "background_color": "#101010"
   },
   "sources": [
