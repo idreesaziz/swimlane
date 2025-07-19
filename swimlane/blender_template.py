@@ -45,6 +45,9 @@ def setup_scene():
     scene.render.ffmpeg.codec = "{codec}"
     if "{audio_codec}" != "NONE":
         scene.render.ffmpeg.audio_codec = "{audio_codec}"
+    
+    # Set audio bitrate for better quality
+    scene.render.ffmpeg.audio_bitrate = 192
 
     # Ensure VSE is the context
     if not scene.sequence_editor:
@@ -178,14 +181,19 @@ def process_audio_track(vse, track, base_channel, fps):
         sound_strip.frame_final_duration = end_frame - start_frame
 
         if 'source_start' in clip:
-            # SIMPLIFIED AUDIO TRIMMING: Since all sources are now at composition FPS
+            # AUDIO TRIMMING: Use the same 3-step approach as video
             source_start_seconds = clip['source_start']
             source_offset_frames = time_to_source_frame(source_start_seconds, fps)
             
-            if hasattr(sound_strip, 'frame_offset_start'):
-                sound_strip.frame_offset_start = source_offset_frames
-            if hasattr(sound_strip, 'animation_offset_start'):
-                sound_strip.animation_offset_start = source_offset_frames
+            # Step 1: Trim the audio source (skip frames at beginning)
+            sound_strip.frame_offset_start = source_offset_frames
+            
+            # Step 2: Set the final duration for the timeline
+            sound_strip.frame_final_duration = end_frame - start_frame
+            
+            # Step 3: Adjust the frame_start position to account for the offset
+            # This ensures the trimmed content appears at the correct timeline position
+            sound_strip.frame_start = start_frame - source_offset_frames
 
         sound_strip.volume = clip.get('volume', 1.0)
 

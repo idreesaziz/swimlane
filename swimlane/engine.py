@@ -619,14 +619,17 @@ class SwimlaneEngine:
             converted_path = os.path.join(temp_dir, converted_filename)
             
             try:
-                # Build ffmpeg command
+                # Build ffmpeg command - preserve audio during video framerate conversion
                 command = [
                     'ffmpeg',
                     '-i', abs_source_path,
-                    '-r', str(composition_fps),
-                    '-preset', 'ultrafast',
-                    '-crf', '15',
-                    '-y',  # Overwrite output files without asking
+                    '-r', str(composition_fps),          # Set video framerate
+                    '-c:v', 'libx264',                   # Video codec
+                    '-preset', 'ultrafast',              # Video encoding preset
+                    '-crf', '15',                        # Video quality
+                    '-c:a', 'aac',                       # Audio codec (preserve audio)
+                    '-b:a', '128k',                      # Audio bitrate
+                    '-y',                                # Overwrite output files without asking
                     converted_path
                 ]
                 

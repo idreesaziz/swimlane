@@ -21,7 +21,7 @@
           "id": "clip_1",
           "source_id": "i",
           "start_time": 0,
-          "end_time": 10,
+          "end_time": 12,
           "source_start": 50,
           "transform": {
         "size": { "pixels": [720, 480] }}
@@ -43,6 +43,29 @@
           "to_clip": "clip_2",
           "duration": 2.0,
           "effect": "fade"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "audio",
+      "clips": [
+        {
+          "id": "audio_clip_1",
+          "source_id": "i",
+          "start_time": 0,
+          "end_time": 10,
+          "source_start": 50,
+          "volume": 1.0,
+          "fade_out": 3.0
+        },
+        {
+          "id": "audio_clip_2", 
+          "source_id": "i",
+          "start_time": 12,
+          "end_time": 60.001,
+          "source_start": 0,
+          "volume": 1.0
         }
       ]
     }
