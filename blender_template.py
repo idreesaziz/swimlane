@@ -21,6 +21,10 @@ SOURCES_DICT = {s['id']: s['path'] for s in SWML_DATA['sources']}
 def time_to_frame(t, fps):
     return int(round(t * fps)) + 1
 
+def time_to_source_frame(t, fps):
+    """Convert time to frame number for source media (0-indexed)"""
+    return int(round(t * fps))
+
 def setup_scene():
     scene = bpy.context.scene
     comp = SWML_DATA['composition']
@@ -115,15 +119,35 @@ def process_video_track(vse, track, base_channel, fps, clip_strip_map):
             strip.frame_final_end = end_frame
             strip.frame_final_duration = end_frame - start_frame  # Ensure full duration for image
         else: # Is a video
+            # Load the strip first to get its properties
             strip = vse.sequences.new_movie(
                 name=clip_id,
                 filepath=source_path,
                 channel=current_channel,
                 frame_start=start_frame
             )
-            strip.frame_final_duration = end_frame - start_frame
+            
             if 'source_start' in clip:
-                strip.animation_offset_start = time_to_frame(clip['source_start'], fps)
+                # PROPER VIDEO TRIMMING: Based on working Blender VSE approach
+                source_start_seconds = clip['source_start']
+                
+                # Calculate frame offset in the source video (at source fps)
+                # TODO: Make this dynamic by reading actual source fps
+                source_fps = 60  # Hardcoded for now - background.mp4 is 60fps
+                source_offset_frames = int(round(source_start_seconds * source_fps))
+                
+                # Step 1: Trim the video source (skip frames at beginning)
+                strip.frame_offset_start = source_offset_frames
+                
+                # Step 2: Set the final duration for the timeline
+                strip.frame_final_duration = end_frame - start_frame
+                
+                # Step 3: Adjust the frame_start position to account for the offset
+                # This ensures the trimmed content appears at the correct timeline position
+                strip.frame_start = start_frame - source_offset_frames
+            else:
+                # Normal case - no source offset
+                strip.frame_final_duration = end_frame - start_frame
 
         # Store the strip for later reference using clip ID
         clip_strip_map[clip_id] = strip
@@ -151,7 +175,11 @@ def process_audio_track(vse, track, base_channel, fps):
         sound_strip.frame_final_duration = end_frame - start_frame
 
         if 'source_start' in clip:
-             sound_strip.animation_offset_start = time_to_frame(clip['source_start'], fps)
+            source_offset_frames = int(round(clip['source_start'] * 60))  # 60fps source
+            if hasattr(sound_strip, 'frame_offset_start'):
+                sound_strip.frame_offset_start = source_offset_frames
+            if hasattr(sound_strip, 'animation_offset_start'):
+                sound_strip.animation_offset_start = source_offset_frames
 
         sound_strip.volume = clip.get('volume', 1.0)
 

@@ -1,236 +1,38 @@
-/*
-  This is a multi-line comment.
-  It should be stripped by the engine's pre-processor.
-  This version of the SWML uses only 3 media files:
-  - media/background.mp4
-  - media/BeHappy.png
-  - media/TransparentAnimation.mov
-
-  This script is designed to produce ONLY WARNINGS, and NO ERRORS,
-  demonstrating the engine's robust defaulting and coercion logic.
-*/
 {
   "composition": {
-    "width": 1920,
-    "height": 1080,
+    "width": 720,
+    "height": 480,
     "fps": 30,
-    // "duration": 0, // Uncomment this to test duration coercion (0 becomes 10.0s)
-    // "duration": -5, // Uncomment this to test negative duration coercion (-5 becomes 10.0s)
-    // "duration": null, // Uncomment this to test duration being calculated from max clip end time
-    "background_color": "#101010"
+    "duration": 60.001,
+    "output_format": "mp4"
   },
   "sources": [
     {
-      "id": "bg_video",
+      "id": "i",
       "path": "media/background.mp4"
-    },
-    {
-      "id": "logo_img",
-      "path": "media/BeHappy.png"
-    },
-    {
-      "id": "transparent_anim",
-      "path": "media/TransparentAnimation.mov"
     }
   ],
   "tracks": [
     {
-      "id": 1, // Background video track
+      "id": 10,
       "type": "video",
       "clips": [
         {
-          "id": "bg_clip",
-          "source_id": "bg_video",
-          "start_time": 0,
-          "end_time": 10
-        }
-      ]
-    },
-    {
-      "id": 2, // Animation and transform test track
-      "type": "video",
-      "clips": [
-        {
-          "id": "anim_clip",
-          "source_id": "transparent_anim",
-          "start_time": 2,
-          "end_time": 8,
-          "transform": {
-            "size": { "scale": [0.5, 0.5] },
-            "position": { "cartesian": [0, 0] },
-            "rotation": 45, // Test unsupported transform property (should be removed & warned)
-            "unknown_prop": "value" // Another unsupported prop
-          }
-        },
-        {
-          "id": "bad_transform_clip",
-          "source_id": "logo_img",
-          "start_time": 1,
-          "end_time": 3,
-          "transform": {
-            "size": {
-              "pixels": [300, "invalid_height"], // Test invalid pixel format (should be removed & warned)
-              "scale": [-0.1, 0.5] // Test negative scale (should be clamped & warned)
-            },
-            "position": {
-              "cartesian": [0.5, 0.5],
-              "pixels": [100, 100] // Now handled by dominance rule (cartesian takes precedence & warns)
-            },
-            "anchor": {} // Test missing pixels/cartesian (should default to center & warn)
-          }
-        },
-        {
-          "id": "bad_start_time_clip",
-          "source_id": "bg_video",
-          "start_time": "invalid", // Test non-numeric start_time (should be coerced to 0 & warned)
-          "end_time": 5
-        }
-      ]
-    },
-    {
-      "id": 3, // Logo and transitions test track
-      "type": "video",
-      "clips": [
-        {
-          "id": "logo_enters",
-          "source_id": "logo_img",
-          "start_time": 1,
-          "end_time": 5,
-          "transform": {
-            "size": { "pixels": [300, 225] },
-            "position": { "cartesian": [-0.8, -0.8] },
-            "anchor": { "cartesian": [-1, -1] }
-          }
-        },
-        {
-          "id": "logo_exits",
-          "source_id": "logo_img",
-          "start_time": 5,
-          "end_time": 9,
-          "transform": {
-            "size": { "pixels": [300, 225] },
-            "position": { "cartesian": [0.8, 0.8] },
-            "anchor": { "cartesian": [1, 1] }
-          }
-        },
-        {
-          "id": "image_auto_duration_clip",
-          "source_id": "logo_img", // Using logo_img for this test now
-          "start_time": 10.5
-          // "end_time" omitted: should default to start_time + 5.0 seconds (e.g., ends at 15.5s)
-        },
-        {
-          "id": "video_auto_duration_clip_repurposed", // Repurposed for bg_video test
-          "source_id": "bg_video",
-          "start_time": 11
-          // "end_time" omitted: should use source media duration
-        },
-        {
-          "id": "short_clip_for_transition_a",
-          "source_id": "bg_video",
-          "start_time": 0,
-          "end_time": 1.0 // Very short clip for testing duration clamping
-        },
-        {
-          "id": "short_clip_for_transition_b",
-          "source_id": "bg_video",
-          "start_time": 0.5,
-          "end_time": 1.5 // Another short clip overlapping A
-        },
-        {
-          "id": "non_overlapping_clip_a",
-          "source_id": "bg_video",
-          "start_time": 20,
-          "end_time": 22
-        },
-        {
-          "id": "non_overlapping_clip_b",
-          "source_id": "bg_video",
-          "start_time": 25, // No overlap with non_overlapping_clip_a
-          "end_time": 27
-        },
-        {
-          "id": "duplicate_id_clip_unique", // FIXED: Changed ID to make it unique and avoid error
-          "source_id": "logo_img",
-          "start_time": 10,
-          "end_time": 12
-        }
-      ],
-      "transitions": [
-        {
-          "from_clip": "logo_enters",
-          "to_clip": "logo_exits",
-          "duration": 2,
-          "type": "CROSSFADE" // Test unknown transition type (should default to 'fade' & warn)
-        },
-        {
-          "from_clip": "short_clip_for_transition_a",
-          "to_clip": "short_clip_for_transition_b",
-          "duration": 5, // Test transition duration exceeding overlap (should be clamped & warned)
-          "type": "WIPE"
-        },
-        {
-          "from_clip": "non_overlapping_clip_a",
-          "to_clip": "non_overlapping_clip_b",
-          "duration": 1, // Test non-overlapping cross-transition (should be skipped & warned)
-          "type": "DISSOLVE"
-        },
-        {
-          "from_clip": "logo_enters",
-          "to_clip": "logo_enters", // Test from_clip == to_clip (should be skipped & warned)
-          "duration": 0.5
-        },
-        {
-          "from_clip": "logo_exits", // Simple fade out
-          "duration": -1, // Test negative duration (should be coerced & warned)
-          "type": "FADE_OUT"
-        },
-        {
-          "to_clip": "anim_clip", // Simple fade in
-          "duration": "invalid_duration" // Test non-numeric duration (should be coerced & warned)
-        },
-        {
-          "from_clip": "non_existent_clip_id", // Test unknown clip ID (should be skipped & warned)
-          "to_clip": "bg_clip",
-          "duration": 1
-        },
-        {
-          // No from_clip or to_clip (should be skipped & warned)
-          "duration": 1,
-          "type": "FADE"
-        }
-      ]
-    },
-    {
-      "id": 4, // Audio track
-      "type": "audio",
-      "clips": [
-        {
-          "id": "bg_music",
-          "source_id": "bg_video", // Changed to bg_video
+          "id": "clip_1",
+          "source_id": "i",
           "start_time": 0,
           "end_time": 10,
-          "volume": 2.0, // Test volume > 1.0 (should warn)
-          "fade_in": -0.5, // Test negative fade (should be coerced to 0 & warned)
-          "fade_out": "long_fade_duration" // Test non-numeric fade (should be coerced to 0 & warned)
+          "source_start": 50.001,
+          "transform": {
+        "size": { "pixels": [720, 480] }}
         },
         {
-          "id": "another_audio_clip",
-          "source_id": "bg_video", // Changed to bg_video
-          "start_time": 2,
-          "end_time": 2 // Test end_time <= start_time (should be coerced & warned)
-        }
-      ]
-    },
-    {
-      "id": 5, // Test track with now fixed clip ID
-      "type": "video",
-      "clips": [
-        {
-          "id": "track5_single_clip", // FIXED: Added unique ID
-          "source_id": "bg_video",
-          "start_time": 0,
-          "end_time": 1
+          "id": "clip_2",
+          "source_id": "i",
+          "start_time": 10,
+          "end_time": 60.001,
+          "source_start": 0,
+          "size": [720, 480]
         }
       ]
     }
