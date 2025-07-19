@@ -48,6 +48,21 @@ def setup_scene():
     
     # Set audio bitrate for better quality
     scene.render.ffmpeg.audio_bitrate = 192
+    
+    # Apply quality settings based on preview mode
+    quality_mode = "{quality}"
+    if quality_mode == "preview":
+        # Fast preview settings
+        scene.render.ffmpeg.constant_rate_factor = "{blender_quality}"
+        if hasattr(scene.render.ffmpeg, 'ffmpeg_preset'):
+            scene.render.ffmpeg.ffmpeg_preset = "{blender_preset}"
+        print(f"Preview mode: Using {blender_quality} quality with {blender_preset} preset for fast rendering")
+    else:
+        # High quality settings
+        scene.render.ffmpeg.constant_rate_factor = "{blender_quality}"
+        if hasattr(scene.render.ffmpeg, 'ffmpeg_preset'):
+            scene.render.ffmpeg.ffmpeg_preset = "{blender_preset}"
+        print(f"High quality mode: Using {blender_quality} quality with {blender_preset} preset")
 
     # Ensure VSE is the context
     if not scene.sequence_editor:

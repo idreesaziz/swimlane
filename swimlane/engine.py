@@ -37,10 +37,11 @@ class SourceInfo(object):
 class SwimlaneEngine:
     DEFAULT_IMAGE_DURATION_SECONDS = 5.0
 
-    def __init__(self, swml_path: str, output_path: str, blender_executable: str = 'blender'):
+    def __init__(self, swml_path: str, output_path: str, blender_executable: str = 'blender', preview_mode: bool = False):
         self.swml_path = swml_path
         self.output_path = os.path.abspath(output_path)
         self.blender_executable = blender_executable
+        self.preview_mode = preview_mode
         self.swml_data = None
         self.source_info_cache: Dict[str, SourceInfo] = {} # Cache for ffprobe results
         self.converted_sources: Dict[str, str] = {} # Cache for framerate-converted sources
@@ -529,17 +530,31 @@ class SwimlaneEngine:
         return data
 
     def _get_blender_output_settings(self) -> Dict[str, str]:
-        """Get Blender FFmpeg output settings based on SWML format"""
+        """Get Blender FFmpeg output settings based on SWML format and preview mode"""
         output_format = self.swml_data['composition'].get('output_format', 'mp4').lower()
+        
+        # Base settings by format
         if output_format == 'mp4':
-            return {'format': 'MPEG4', 'codec': 'H264', 'audio_codec': 'AAC'}
+            settings = {'format': 'MPEG4', 'codec': 'H264', 'audio_codec': 'AAC'}
         elif output_format == 'mov':
-            return {'format': 'QUICKTIME', 'codec': 'PRORES', 'audio_codec': 'PCM'}
+            settings = {'format': 'QUICKTIME', 'codec': 'PRORES', 'audio_codec': 'PCM'}
         elif output_format == 'webm':
-            return {'format': 'WEBM', 'codec': 'VP9', 'audio_codec': 'OPUS'}
+            settings = {'format': 'WEBM', 'codec': 'VP9', 'audio_codec': 'OPUS'}
         else:
             self._warn(f"Unsupported output format '{output_format}'. Defaulting to 'mp4'.")
-            return {'format': 'MPEG4', 'codec': 'H264', 'audio_codec': 'AAC'}
+            settings = {'format': 'MPEG4', 'codec': 'H264', 'audio_codec': 'AAC'}
+        
+        # Apply preview quality settings if in preview mode
+        if self.preview_mode:
+            settings['quality'] = 'preview'
+            settings['blender_quality'] = 'LOSSLESS'    # Fastest encoding, largest files
+            settings['blender_preset'] = 'REALTIME'     # Blender's preset enum (fastest)
+        else:
+            settings['quality'] = 'high'
+            settings['blender_quality'] = 'HIGH'        # Blender's quality enum
+            settings['blender_preset'] = 'GOOD'         # Blender's preset enum (balanced)
+        
+        return settings
 
     def _generate_blender_script(self) -> str:
         """Generates the full Python script for Blender to execute."""
@@ -562,6 +577,9 @@ class SwimlaneEngine:
             script = script.replace("{format}", output_settings['format'])
             script = script.replace("{codec}", output_settings['codec'])
             script = script.replace("{audio_codec}", output_settings['audio_codec'])
+            script = script.replace("{quality}", output_settings['quality'])
+            script = script.replace("{blender_preset}", output_settings['blender_preset'])
+            script = script.replace("{blender_quality}", output_settings['blender_quality'])
             return script
         except Exception as e:
             raise SwmlError(f"Error formatting script template: {e}")
@@ -688,6 +706,8 @@ class SwimlaneEngine:
 
 
             print("3. Generating Blender script...")
+            if self.preview_mode:
+                print("   - Preview mode enabled: Using fast/low quality render settings")
             blender_script_content = self._generate_blender_script()
             
             with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_script:
