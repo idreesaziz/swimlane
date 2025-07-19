@@ -2,7 +2,7 @@
   "composition": {
     "width": 720,
     "height": 480,
-    "fps": 30,
+    "fps": 10,
     "duration": 60,
     "output_format": "mp4"
   },
@@ -32,7 +32,17 @@
           "start_time": 10,
           "end_time": 60.001,
           "source_start": 0,
-          "size": [720, 480]
+          "transform": {
+            "size": { "pixels": [720, 480] }
+          }
+        }
+      ],
+      "transitions": [
+        {
+          "from_clip": "clip_1",
+          "to_clip": "clip_2",
+          "duration": 2.0,
+          "effect": "fade"
         }
       ]
     }

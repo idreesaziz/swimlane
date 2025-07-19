@@ -9,6 +9,9 @@ import math
 #
 # This template handles the conversion of SWML data to Blender VSE instructions.
 # 
+# IMPORTANT: All video sources are preprocessed to match the composition framerate
+# before this template runs, so all frame calculations use composition FPS.
+# 
 # -------------------------------------------
 
 # Embedded SWML data
@@ -19,11 +22,13 @@ OUTPUT_PATH = r"{output_path}"
 SOURCES_DICT = {s['id']: s['path'] for s in SWML_DATA['sources']}
 
 def time_to_frame(t, fps):
-    return int(round(t * fps)) + 1
+    """Convert time in seconds to frame number (1-indexed for Blender)"""
+    return int(round(t * fps))
 
 def time_to_source_frame(t, fps):
     """Convert time to frame number for source media (0-indexed)"""
     return int(round(t * fps))
+
 
 def setup_scene():
     scene = bpy.context.scene
@@ -128,13 +133,11 @@ def process_video_track(vse, track, base_channel, fps, clip_strip_map):
             )
             
             if 'source_start' in clip:
-                # PROPER VIDEO TRIMMING: Based on working Blender VSE approach
+                # SIMPLIFIED VIDEO TRIMMING: Since all videos are now at composition FPS
                 source_start_seconds = clip['source_start']
                 
-                # Calculate frame offset in the source video (at source fps)
-                # TODO: Make this dynamic by reading actual source fps
-                source_fps = 60  # Hardcoded for now - background.mp4 is 60fps
-                source_offset_frames = int(round(source_start_seconds * source_fps))
+                # Calculate frame offset in the source video (now at composition fps)
+                source_offset_frames = time_to_source_frame(source_start_seconds, fps)
                 
                 # Step 1: Trim the video source (skip frames at beginning)
                 strip.frame_offset_start = source_offset_frames
@@ -175,7 +178,10 @@ def process_audio_track(vse, track, base_channel, fps):
         sound_strip.frame_final_duration = end_frame - start_frame
 
         if 'source_start' in clip:
-            source_offset_frames = int(round(clip['source_start'] * 60))  # 60fps source
+            # SIMPLIFIED AUDIO TRIMMING: Since all sources are now at composition FPS
+            source_start_seconds = clip['source_start']
+            source_offset_frames = time_to_source_frame(source_start_seconds, fps)
+            
             if hasattr(sound_strip, 'frame_offset_start'):
                 sound_strip.frame_offset_start = source_offset_frames
             if hasattr(sound_strip, 'animation_offset_start'):
