@@ -3,7 +3,7 @@
     "width": 720,
     "height": 480,
     "fps": 30,
-    "duration": 60.001,
+    "duration": 60,
     "output_format": "mp4"
   },
   "sources": [
@@ -22,7 +22,7 @@
           "source_id": "i",
           "start_time": 0,
           "end_time": 10,
-          "source_start": 50.001,
+          "source_start": 50,
           "transform": {
         "size": { "pixels": [720, 480] }}
         },

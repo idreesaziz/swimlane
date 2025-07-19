@@ -11,6 +11,7 @@ import tempfile
 import textwrap
 import re # For comment stripping
 import warnings # For custom warnings
+import shutil # For cleanup
 from typing import Dict, List, Any, Tuple, Optional
 
 # ffprobe is still used for validation, so the dependency remains.
@@ -42,6 +43,60 @@ class SwimlaneEngine:
         self.blender_executable = blender_executable
         self.swml_data = None
         self.source_info_cache: Dict[str, SourceInfo] = {} # Cache for ffprobe results
+        self.converted_sources: Dict[str, str] = {} # Cache for framerate-converted sources
+
+    def dry_run_preprocessing(self):
+        """Test the preprocessing step without running Blender"""
+        try:
+            print("--- Swimlane Engine: Preprocessing Dry Run ---")
+            print(f"1. Parsing SWML file: {self.swml_path}")
+            self.parse_swml()
+            
+            print("2. Testing video preprocessing...")
+            self._preprocess_video_sources()
+            
+            print("\n--- Preprocessing Results ---")
+            for source_id, converted_path in self.converted_sources.items():
+                print(f"  Source '{source_id}' converted to: {converted_path}")
+                if os.path.exists(converted_path):
+                    print(f"    File exists: YES")
+                    # Check framerate of converted file
+                    try:
+                        result = subprocess.run([
+                            'ffprobe', '-v', 'quiet', '-select_streams', 'v:0', 
+                            '-show_entries', 'stream=r_frame_rate', '-of', 'csv=p=0', 
+                            converted_path
+                        ], capture_output=True, text=True, check=True)
+                        framerate = result.stdout.strip()
+                        print(f"    Framerate: {framerate}")
+                    except:
+                        print(f"    Framerate: Could not determine")
+                else:
+                    print(f"    File exists: NO")
+            
+            if not self.converted_sources:
+                print("  No video sources required conversion")
+                
+        finally:
+            # Clean up converted files
+            temp_dirs_to_remove = set()
+            for source_id, converted_path in self.converted_sources.items():
+                try:
+                    if os.path.exists(converted_path):
+                        temp_dir = os.path.dirname(converted_path)
+                        temp_dirs_to_remove.add(temp_dir)
+                        os.remove(converted_path)
+                        print(f"  Cleaned up: {converted_path}")
+                except Exception:
+                    pass
+            
+            for temp_dir in temp_dirs_to_remove:
+                try:
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir)
+                        print(f"  Removed temp directory: {temp_dir}")
+                except Exception:
+                    pass
 
     def _warn(self, message: str):
         """Emits a non-blocking warning message."""
@@ -533,12 +588,84 @@ class SwimlaneEngine:
         except Exception as e:
             raise SwmlError(f"Error formatting script template: {e}")
 
+    def _preprocess_video_sources(self):
+        """Convert all video sources to composition framerate using ffmpeg."""
+        if not self.swml_data:
+            raise SwmlError("SWML data not loaded. Call parse_swml() first.")
+        
+        composition_fps = self.swml_data['composition']['fps']
+        print(f"2. Preprocessing video sources for {composition_fps} FPS...")
+        
+        # Create a temporary directory for converted videos
+        temp_dir = tempfile.mkdtemp(prefix='swimlane_converted_')
+        
+        for source in self.swml_data['sources']:
+            source_id = source.get('id')
+            source_path = source.get('path')
+            abs_source_path = os.path.abspath(source_path)
+            
+            # Get source info from cache (already probed)
+            source_info = self.source_info_cache.get(abs_source_path)
+            
+            # Skip if it's an image or doesn't have video
+            if not source_info or source_info.is_image or not source_info.has_video:
+                continue
+            
+            print(f"   Converting video source '{source_id}': {source_path}")
+            
+            # Generate output filename
+            base_name = os.path.splitext(os.path.basename(source_path))[0]
+            converted_filename = f"{base_name}_{composition_fps}fps.mp4"
+            converted_path = os.path.join(temp_dir, converted_filename)
+            
+            try:
+                # Build ffmpeg command
+                command = [
+                    'ffmpeg',
+                    '-i', abs_source_path,
+                    '-r', str(composition_fps),
+                    '-preset', 'ultrafast',
+                    '-crf', '15',
+                    '-y',  # Overwrite output files without asking
+                    converted_path
+                ]
+                
+                print(f"     Running: {' '.join(command)}")
+                
+                # Run ffmpeg conversion
+                result = subprocess.run(command, capture_output=True, text=True, check=True)
+                
+                # Update the source path in SWML data to point to converted file
+                source['path'] = converted_path
+                self.converted_sources[source_id] = converted_path
+                
+                # Re-probe the converted file to update cache
+                self._probe_source(converted_path)
+                
+                print(f"     ✓ Converted to: {converted_path}")
+                
+            except subprocess.CalledProcessError as e:
+                # If ffmpeg fails, warn but continue with original file
+                self._warn(f"Failed to convert video source '{source_id}' to {composition_fps} FPS. Using original file. Error: {e.stderr}")
+                continue
+            except FileNotFoundError:
+                # ffmpeg not found
+                self._warn("ffmpeg not found in PATH. Video sources will not be converted to composition framerate. This may cause timing issues.")
+                break  # Don't try to convert other videos if ffmpeg is missing
+            except Exception as e:
+                # Other unexpected errors
+                self._warn(f"Unexpected error converting video source '{source_id}': {e}")
+                continue
+
     def render(self):
         """Main rendering function"""
         try:
             print("--- Swimlane Engine: Blender VSE Mode ---")
             print(f"1. Parsing SWML file: {self.swml_path}")
             self.parse_swml() # This will populate self.swml_data and apply defaults/coercions
+
+            # Preprocess video sources to match composition framerate
+            self._preprocess_video_sources()
 
             # Now, after parsing, do final critical checks based on fully processed data
             audio_source_issues, video_source_issues = [], []
@@ -566,14 +693,14 @@ class SwimlaneEngine:
             if video_source_issues: raise SwmlError("The following sources are used in video tracks but lack a video stream (or dimensions for images):\n" + "\n".join(video_source_issues))
 
 
-            print("2. Generating Blender script...")
+            print("3. Generating Blender script...")
             blender_script_content = self._generate_blender_script()
             
             with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_script:
                 temp_script.write(blender_script_content)
                 script_path = temp_script.name
 
-            print(f"3. Executing Blender...")
+            print(f"4. Executing Blender...")
             print(f"   - Executable: {self.blender_executable}")
             print(f"   - Script: {script_path}")
             print(f"   - Output: {self.output_path}")
@@ -616,6 +743,25 @@ class SwimlaneEngine:
         finally:
             if 'script_path' in locals() and os.path.exists(script_path):
                 os.remove(script_path)
+            
+            # Clean up converted video files and temp directory
+            temp_dirs_to_remove = set()
+            for source_id, converted_path in self.converted_sources.items():
+                try:
+                    if os.path.exists(converted_path):
+                        temp_dir = os.path.dirname(converted_path)
+                        temp_dirs_to_remove.add(temp_dir)
+                        os.remove(converted_path)
+                except Exception:
+                    pass  # Ignore cleanup errors
+            
+            # Remove temp directories
+            for temp_dir in temp_dirs_to_remove:
+                try:
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir)
+                except Exception:
+                    pass  # Ignore cleanup errors
 
 
 def main():

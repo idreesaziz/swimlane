@@ -1,0 +1,32 @@
+{
+  "composition": {
+    "width": 720,
+    "height": 480,
+    "fps": 30,
+    "duration": 5.0,
+    "output_format": "mp4"
+  },
+  "sources": [
+    {
+      "id": "logo",
+      "path": "media/logo.png"
+    }
+  ],
+  "tracks": [
+    {
+      "id": 10,
+      "type": "video",
+      "clips": [
+        {
+          "id": "clip_1",
+          "source_id": "logo",
+          "start_time": 0,
+          "end_time": 5,
+          "transform": {
+            "size": { "pixels": [720, 480] }
+          }
+        }
+      ]
+    }
+  ]
+}
