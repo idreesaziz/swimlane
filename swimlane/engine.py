@@ -547,8 +547,8 @@ class SwimlaneEngine:
         # Apply preview quality settings if in preview mode
         if self.preview_mode:
             settings['quality'] = 'preview'
-            settings['blender_quality'] = 'LOSSLESS'    # Fastest encoding, largest files
-            settings['blender_preset'] = 'REALTIME'     # Blender's preset enum (fastest)
+            settings['blender_quality'] = 'LOWEST'      # Lowest quality for fastest encoding
+            settings['blender_preset'] = 'REALTIME'    # Fastest valid encoding preset
         else:
             settings['quality'] = 'high'
             settings['blender_quality'] = 'HIGH'        # Blender's quality enum
@@ -558,8 +558,18 @@ class SwimlaneEngine:
 
     def _generate_blender_script(self) -> str:
         """Generates the full Python script for Blender to execute."""
+        
+        # Create a copy of SWML data for potential modification
+        swml_data_for_blender = self.swml_data.copy()
+        
+        # Override composition settings for preview mode
+        if self.preview_mode:
+            swml_data_for_blender['composition'] = self.swml_data['composition'].copy()
+            swml_data_for_blender['composition']['fps'] = 10  # Force 10 FPS for preview
+            print(f"   - Preview mode: Overriding composition FPS to 10 (original: {self.swml_data['composition']['fps']})")
+        
         # Proper JSON escaping, ensure backslashes are doubled for Python string literal
-        swml_data_str = json.dumps(self.swml_data, indent=2).replace('\\', '\\\\').replace("'", "\\'")
+        swml_data_str = json.dumps(swml_data_for_blender, indent=2).replace('\\', '\\\\').replace("'", "\\'")
         output_settings = self._get_blender_output_settings()
         
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -593,8 +603,13 @@ class SwimlaneEngine:
         if not self.swml_data:
             raise SwmlError("SWML data not loaded. Call parse_swml() first.")
         
-        composition_fps = self.swml_data['composition']['fps']
-        print(f"2. Preprocessing video sources for {composition_fps} FPS...")
+        # Use preview FPS when in preview mode, otherwise use composition FPS
+        if self.preview_mode:
+            target_fps = 10  # Fixed preview FPS
+            print(f"2. Preprocessing video sources for {target_fps} FPS (preview mode)...")
+        else:
+            target_fps = self.swml_data['composition']['fps']
+            print(f"2. Preprocessing video sources for {target_fps} FPS...")
         
         # Create cache directory in project root for converted videos
         cache_dir = os.path.join(os.path.dirname(self.swml_path), '.swimlane_cache')
@@ -612,9 +627,9 @@ class SwimlaneEngine:
             if not source_info or source_info.is_image or not source_info.has_video:
                 continue
             
-            # Generate output filename with composition framerate to ensure cache uniqueness
+            # Generate output filename with target framerate to ensure cache uniqueness
             base_name = os.path.splitext(os.path.basename(source_path))[0]
-            converted_filename = f"{base_name}_{composition_fps}fps.mp4"
+            converted_filename = f"{base_name}_{target_fps}fps.mp4"
             converted_path = os.path.join(cache_dir, converted_filename)
             
             # Check if cached file already exists
@@ -635,7 +650,7 @@ class SwimlaneEngine:
                 command = [
                     'ffmpeg',
                     '-i', abs_source_path,
-                    '-r', str(composition_fps),          # Set video framerate
+                    '-r', str(target_fps),              # Set video framerate
                     '-c:v', 'libx264',                   # Video codec
                     '-preset', 'ultrafast',              # Video encoding preset
                     '-crf', '15',                        # Video quality
@@ -662,11 +677,11 @@ class SwimlaneEngine:
                 
             except subprocess.CalledProcessError as e:
                 # If ffmpeg fails, warn but continue with original file
-                self._warn(f"Failed to convert video source '{source_id}' to {composition_fps} FPS. Using original file. Error: {e.stderr}")
+                self._warn(f"Failed to convert video source '{source_id}' to {target_fps} FPS. Using original file. Error: {e.stderr}")
                 continue
             except FileNotFoundError:
                 # ffmpeg not found
-                self._warn("ffmpeg not found in PATH. Video sources will not be converted to composition framerate. This may cause timing issues.")
+                self._warn(f"ffmpeg not found in PATH. Video sources will not be converted to {target_fps} framerate. This may cause timing issues.")
                 break  # Don't try to convert other videos if ffmpeg is missing
             except Exception as e:
                 # Other unexpected errors

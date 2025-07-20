@@ -2,7 +2,7 @@
   "composition": {
     "width": 720,
     "height": 480,
-    "fps": 10,
+    "fps": 90,
     "duration": 60,
     "output_format": "mp4"
   },
