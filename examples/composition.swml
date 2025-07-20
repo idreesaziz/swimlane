@@ -1,8 +1,8 @@
 {
   "composition": {
-    "width": 720,
-    "height": 480,
-    "fps": 90,
+    "width": 1920,
+    "height": 1080,
+    "fps": 15,
     "duration": 60,
     "output_format": "mp4"
   },
@@ -24,17 +24,23 @@
           "end_time": 12,
           "source_start": 50,
           "transform": {
-        "size": { "pixels": [720, 480] }}
+            "size": {
+              "pixels": [1920, 1080]
+            },
+            "anchor": {
+              "cartesian": [-1, 1]
+            },
+            "position": {
+              "pixels": [0, 0]
+            }
+          }
         },
         {
           "id": "clip_2",
           "source_id": "i",
           "start_time": 10,
           "end_time": 60.001,
-          "source_start": 0,
-          "transform": {
-            "size": { "pixels": [720, 480] }
-          }
+          "source_start": 0
         }
       ],
       "transitions": [

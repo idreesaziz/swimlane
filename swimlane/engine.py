@@ -12,6 +12,7 @@ import textwrap
 import re # For comment stripping
 import warnings # For custom warnings
 import shutil # For cleanup
+import copy # For deep copying SWML data
 from typing import Dict, List, Any, Tuple, Optional
 
 # ffprobe is still used for validation, so the dependency remains.
@@ -556,17 +557,103 @@ class SwimlaneEngine:
         
         return settings
 
+    def _scale_transforms_for_preview(self, swml_data: Dict[str, Any], scale_factor: float):
+        """Scale transform pixel values for preview mode while preserving cartesian coordinates."""
+        for track in swml_data.get('tracks', []):
+            if track.get('type', 'video') != 'video':
+                continue  # Only process video tracks
+                
+            for clip in track.get('clips', []):
+                # Get source dimensions for scaling calculations
+                source_id = clip.get('source_id')
+                source_info = None
+                if source_id:
+                    # Find the source path
+                    for source in swml_data['sources']:
+                        if source.get('id') == source_id:
+                            source_path = source.get('path')
+                            if source_path:
+                                source_info = self.source_info_cache.get(os.path.abspath(source_path))
+                            break
+                
+                # Ensure clip has a transform object
+                if 'transform' not in clip:
+                    clip['transform'] = {}
+                transform = clip['transform']
+                
+                # Handle size transforms
+                if 'size' not in transform:
+                    transform['size'] = {}
+                size = transform['size']
+                
+                # Scale existing pixel sizes or add scaled default size
+                if 'pixels' in size:
+                    pixels = size['pixels']
+                    if isinstance(pixels, list) and len(pixels) == 2:
+                        size['pixels'] = [int(pixels[0] * scale_factor), int(pixels[1] * scale_factor)]
+                elif source_info and source_info.has_video:
+                    # Add scaled source dimensions as pixel size for proper scaling
+                    scaled_width = int(source_info.width * scale_factor)
+                    scaled_height = int(source_info.height * scale_factor)
+                    size['pixels'] = [scaled_width, scaled_height]
+                        
+                # Scale position transforms (only pixels, leave cartesian alone)
+                if 'position' in transform:
+                    position = transform['position']
+                    
+                    # Scale pixel positions
+                    if 'pixels' in position:
+                        pixels = position['pixels']
+                        if isinstance(pixels, list) and len(pixels) == 2:
+                            position['pixels'] = [int(pixels[0] * scale_factor), int(pixels[1] * scale_factor)]
+                
+                # Scale anchor transforms (only pixels, leave cartesian alone)
+                if 'anchor' in transform:
+                    anchor = transform['anchor']
+                    
+                    # Scale pixel anchors
+                    if 'pixels' in anchor:
+                        pixels = anchor['pixels']
+                        if isinstance(pixels, list) and len(pixels) == 2:
+                            anchor['pixels'] = [int(pixels[0] * scale_factor), int(pixels[1] * scale_factor)]
+
     def _generate_blender_script(self) -> str:
         """Generates the full Python script for Blender to execute."""
         
-        # Create a copy of SWML data for potential modification
-        swml_data_for_blender = self.swml_data.copy()
+        # Create a deep copy of SWML data for potential modification
+        swml_data_for_blender = copy.deepcopy(self.swml_data)
         
         # Override composition settings for preview mode
         if self.preview_mode:
-            swml_data_for_blender['composition'] = self.swml_data['composition'].copy()
             swml_data_for_blender['composition']['fps'] = 10  # Force 10 FPS for preview
+            
+            # Calculate resolution scaling for preview mode
+            original_width = self.swml_data['composition']['width']
+            original_height = self.swml_data['composition']['height']
+            preview_height = 480
+            
+            # Calculate width to maintain aspect ratio and ensure it's even (required by video codecs)
+            aspect_ratio = original_width / original_height
+            preview_width = int(preview_height * aspect_ratio)
+            # Ensure width is even (required by most video codecs)
+            if preview_width % 2 != 0:
+                preview_width += 1
+            
+            # Calculate scale factor based on the actual final dimensions
+            # Use the smaller of the two scale factors to ensure everything fits
+            width_scale = preview_width / original_width
+            height_scale = preview_height / original_height
+            scale_factor = min(width_scale, height_scale)
+            
+            # Update composition resolution
+            swml_data_for_blender['composition']['width'] = preview_width
+            swml_data_for_blender['composition']['height'] = preview_height
+            
+            # Scale transforms in all video tracks
+            self._scale_transforms_for_preview(swml_data_for_blender, scale_factor)
+            
             print(f"   - Preview mode: Overriding composition FPS to 10 (original: {self.swml_data['composition']['fps']})")
+            print(f"   - Preview mode: Downscaling resolution to {preview_width}x{preview_height} (original: {original_width}x{original_height}, scale: {scale_factor:.3f})")
         
         # Proper JSON escaping, ensure backslashes are doubled for Python string literal
         swml_data_str = json.dumps(swml_data_for_blender, indent=2).replace('\\', '\\\\').replace("'", "\\'")
