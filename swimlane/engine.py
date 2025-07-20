@@ -585,7 +585,11 @@ class SwimlaneEngine:
             raise SwmlError(f"Error formatting script template: {e}")
 
     def _preprocess_video_sources(self):
-        """Convert all video sources to composition framerate using ffmpeg."""
+        """Convert all video sources to composition framerate using ffmpeg.
+        
+        Caches converted videos with framerate-specific filenames to ensure
+        proper cache isolation between different compositions.
+        """
         if not self.swml_data:
             raise SwmlError("SWML data not loaded. Call parse_swml() first.")
         
@@ -608,9 +612,9 @@ class SwimlaneEngine:
             if not source_info or source_info.is_image or not source_info.has_video:
                 continue
             
-            # Generate output filename
+            # Generate output filename with composition framerate to ensure cache uniqueness
             base_name = os.path.splitext(os.path.basename(source_path))[0]
-            converted_filename = f"{base_name}.mp4"
+            converted_filename = f"{base_name}_{composition_fps}fps.mp4"
             converted_path = os.path.join(cache_dir, converted_filename)
             
             # Check if cached file already exists

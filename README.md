@@ -309,7 +309,7 @@ The package includes example SWML files in the `examples/` directory demonstrati
 - `cli.py`: Command-line interface and argument parsing
 - `engine.py`: Core engine logic, SWML parsing, and validation
 - `blender_template.py`: Python script template executed by Blender
-- `.swimlane_cache/`: Directory for transcoded video sources
+- `.swimlane_cache/`: Directory for transcoded video sources (filename includes framerate for cache uniqueness)
 
 ### Contributing
 
