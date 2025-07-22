@@ -714,9 +714,9 @@ class SwimlaneEngine:
             if not source_info or source_info.is_image or not source_info.has_video:
                 continue
             
-            # Generate output filename with target framerate to ensure cache uniqueness
+            # Generate output filename with target framerate - always use MOV for transparency support
             base_name = os.path.splitext(os.path.basename(source_path))[0]
-            converted_filename = f"{base_name}_{target_fps}fps.mp4"
+            converted_filename = f"{base_name}_{target_fps}fps.mov"
             converted_path = os.path.join(cache_dir, converted_filename)
             
             # Check if cached file already exists
@@ -733,17 +733,17 @@ class SwimlaneEngine:
             print(f"   Converting video source '{source_id}': {source_path}")
             
             try:
-                # Build ffmpeg command - preserve audio during video framerate conversion
+                # Always use ProRes 4444 codec with MOV container to preserve transparency
+                # For videos without transparency, alpha channel will be opaque (1.0)
                 command = [
                     'ffmpeg',
                     '-i', abs_source_path,
                     '-r', str(target_fps),              # Set video framerate
-                    '-c:v', 'libx264',                   # Video codec
-                    '-preset', 'ultrafast',              # Video encoding preset
-                    '-crf', '15',                        # Video quality
-                    '-c:a', 'aac',                       # Audio codec (preserve audio)
-                    '-b:a', '128k',                      # Audio bitrate
-                    '-y',                                # Overwrite output files without asking
+                    '-c:v', 'prores_ks',                # ProRes codec with alpha support
+                    '-profile:v', '4444',               # ProRes 4444 profile (supports alpha)
+                    '-vendor', 'apl0',                  # Apple vendor code for compatibility
+                    '-c:a', 'pcm_s16le',                # Uncompressed audio for MOV
+                    '-y',                               # Overwrite output files without asking
                     converted_path
                 ]
                 
@@ -760,7 +760,7 @@ class SwimlaneEngine:
                 # Re-probe the converted file to update cache
                 self._probe_source(abs_converted_path)
                 
-                print(f"     ✓ Converted to: {converted_path}")
+                print(f"     ✓ Converted to: {converted_path} (ProRes 4444 with transparency support)")
                 
             except subprocess.CalledProcessError as e:
                 # If ffmpeg fails, warn but continue with original file

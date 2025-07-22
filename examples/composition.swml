@@ -10,6 +10,10 @@
     {
       "id": "i",
       "path": "media/background.mp4"
+    },
+    {
+      "id": "u",
+      "path": "media/gen.mov"
     }
   ],
   "tracks": [
@@ -19,19 +23,13 @@
       "clips": [
         {
           "id": "clip_1",
-          "source_id": "i",
+          "source_id": "u",
           "start_time": 0,
-          "end_time": 12,
-          "source_start": 50,
+          "end_time": 5,
+          "source_start": 0,
           "transform": {
             "size": {
               "pixels": [1920, 1080]
-            },
-            "anchor": {
-              "cartesian": [-1, 1]
-            },
-            "position": {
-              "pixels": [0, 0]
             }
           }
         },
