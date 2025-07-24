@@ -13,6 +13,7 @@ import re # For comment stripping
 import warnings # For custom warnings
 import shutil # For cleanup
 import copy # For deep copying SWML data
+import hashlib # For generating unique cache keys
 from typing import Dict, List, Any, Tuple, Optional
 
 # ffprobe is still used for validation, so the dependency remains.
@@ -714,9 +715,11 @@ class SwimlaneEngine:
             if not source_info or source_info.is_image or not source_info.has_video:
                 continue
             
-            # Generate output filename with target framerate - always use MOV for transparency support
+            # Generate unique cache filename based on full path and target framerate
+            # Use hash of full path to ensure uniqueness while keeping filename readable
+            path_hash = hashlib.md5(abs_source_path.encode('utf-8')).hexdigest()[:8]
             base_name = os.path.splitext(os.path.basename(source_path))[0]
-            converted_filename = f"{base_name}_{target_fps}fps.mov"
+            converted_filename = f"{base_name}_{path_hash}_{target_fps}fps.mov"
             converted_path = os.path.join(cache_dir, converted_filename)
             
             # Check if cached file already exists

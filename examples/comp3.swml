@@ -1,0 +1,73 @@
+{
+  "composition": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "duration": 10.0,
+    "output_format": "mp4"
+  },
+  "sources": [
+    {
+      "id": "gen_asset_1_1_white_box",
+      "path": "gen_asset_1_1_white_box.mov"
+    },
+    {
+      "id": "gen_asset_2_1_blue_box",
+      "path": "gen_asset_2_1_blue_box.mov"
+    },
+    {
+      "id": "gen_asset_3_1_text",
+      "path": "gen_asset_3_1_text.mov"
+    }
+  ],
+  "tracks": [
+    {
+      "id": 10,
+      "type": "video",
+      "clips": [
+        {
+          "id": "white_box_clip",
+          "source_id": "gen_asset_2_1_blue_box",
+          "start_time": 0.0,
+          "end_time": 10.0,
+          "source_start": 0.0,
+          "transform": {
+            "size": {
+              "scale": [
+                2.25,
+                2.25
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "video",
+      "clips": [
+        {
+          "id": "text_clip",
+          "source_id": "gen_asset_3_1_text",
+          "start_time": 0.0,
+          "end_time": 10.0,
+          "source_start": 0.0,
+          "transform": {
+            "size": {
+              "scale": [
+                2.25,
+                2.25
+              ]
+            },
+            "position": {
+              "cartesian": [
+                0.0,
+                0.3
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
