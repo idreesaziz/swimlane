@@ -38,6 +38,51 @@ def setup_scene():
     scene.render.fps = comp['fps']
     scene.frame_end = time_to_frame(comp['duration'], comp['fps'])
     
+    # Ensure VSE exists BEFORE setting use_sequencer
+    if not scene.sequence_editor:
+        scene.sequence_editor_create()
+        print(f"Sequence Editor Created: {scene.sequence_editor is not None}")
+    
+    # --- IMPORTANT FIX ---
+    # Explicitly tell Blender to render the VSE, not the 3D scene
+    scene.render.use_sequencer = True
+    
+    # Additional VSE enforcement settings
+    scene.render.resolution_percentage = 100
+    
+    # For audio-only compositions, add a black color strip to provide visual content
+    # This prevents Blender from falling back to 3D scene rendering
+    vse = scene.sequence_editor
+    has_video_sequences = any(seq.type in ['MOVIE', 'IMAGE'] for seq in vse.sequences if vse.sequences)
+    
+    if not has_video_sequences:
+        # Add a black color strip for the entire duration to provide visual content
+        print("DEBUG: Audio-only composition detected - adding black color strip to prevent 3D rendering")
+        color_strip = vse.sequences.new_effect(
+            name="black_background",
+            type='COLOR',
+            channel=2,  # Use channel 2 to avoid conflicts with audio on channel 1
+            frame_start=1,
+            frame_end=scene.frame_end
+        )
+        color_strip.color = (0.0, 0.0, 0.0)  # Pure black
+        print(f"DEBUG: Added black color strip from frame 1 to {scene.frame_end}")
+    
+    # Clear 3D scene mesh objects as backup (but color strip should prevent 3D rendering)
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in bpy.context.scene.objects:
+        if obj.type == 'MESH':  # Only delete mesh objects (cube, etc.)
+            obj.select_set(True)
+    bpy.ops.object.delete(use_global=False)
+    print("DEBUG: Cleared 3D scene mesh objects as backup")
+    
+    # Debug: Verify the setting
+    print(f"VSE Render Setting: scene.render.use_sequencer = {scene.render.use_sequencer}")
+    
+    # Force scene update to apply VSE settings
+    bpy.context.view_layer.update()
+    print("DEBUG: Scene updated to apply VSE settings")
+    
     # Output settings
     scene.render.filepath = OUTPUT_PATH
     scene.render.image_settings.file_format = 'FFMPEG'
@@ -51,6 +96,15 @@ def setup_scene():
     
     # Apply quality settings based on preview mode
     quality_mode = "{quality}"
+    
+    # For VSE-only rendering, use WORKBENCH engine to avoid 3D sampling overhead
+    print("VSE Mode: Forcing WORKBENCH engine to eliminate 3D sampling")
+    scene.render.engine = 'BLENDER_WORKBENCH'
+    
+    # Disable workbench anti-aliasing to minimize rendering overhead
+    if hasattr(scene.display, 'render_aa'):
+        scene.display.render_aa = 'OFF'
+    
     if quality_mode == "preview":
         # Fast preview settings
         scene.render.ffmpeg.constant_rate_factor = "{blender_quality}"
@@ -64,14 +118,11 @@ def setup_scene():
             scene.render.ffmpeg.ffmpeg_preset = "{blender_preset}"
         print(f"High quality mode: Using {'{blender_quality}'} quality with {'{blender_preset}'} preset")
 
-    # Ensure VSE is the context
-    if not scene.sequence_editor:
-        scene.sequence_editor_create()
-    
-    # Clear existing sequences
-    sequences = scene.sequence_editor.sequences
-    for seq in list(sequences):
-        sequences.remove(seq)
+    # Clear existing sequences if sequence editor exists
+    if scene.sequence_editor:
+        sequences = scene.sequence_editor.sequences
+        for seq in list(sequences):
+            sequences.remove(seq)
     
     print("Blender scene setup complete.")
     return scene, scene.sequence_editor
@@ -436,6 +487,18 @@ def main():
     print("--- Starting Blender VSE Rendering ---")
     scene, vse = setup_scene()
     process_tracks(scene, vse)
+    
+    # Debug: Final check before rendering
+    if vse and vse.sequences:
+        print(f"DEBUG: Final VSE check - Found {len(vse.sequences)} sequences before render")
+        for seq in vse.sequences:
+            print(f"DEBUG: Sequence '{seq.name}' type: {seq.type}, channel: {seq.channel}, frames: {seq.frame_start}-{seq.frame_final_end}")
+    else:
+        print("DEBUG: WARNING - No sequences found in VSE before render!")
+    
+    # Confirm VSE setting one more time
+    print(f"DEBUG: Final VSE setting check: scene.render.use_sequencer = {scene.render.use_sequencer}")
+    
     print("Track processing complete. Starting final render...")
     bpy.ops.render.render(animation=True, write_still=True)
     print("--- Blender VSE Rendering Finished ---")

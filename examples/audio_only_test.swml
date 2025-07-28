@@ -1,0 +1,41 @@
+{
+  "composition": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "duration": 10.0,
+    "output_format": "mp4"
+  },
+  "sources": [
+    {
+      "id": "background_audio",
+      "path": "media/background.mp4"
+    }
+  ],
+  "tracks": [
+    {
+      "id": 1,
+      "type": "audio",
+      "clips": [
+        {
+          "id": "audio_clip_1",
+          "source_id": "background_audio",
+          "start_time": 0.0,
+          "end_time": 5.0,
+          "source_start": 0.0,
+          "volume": 0.8
+        },
+        {
+          "id": "audio_clip_2",
+          "source_id": "background_audio",
+          "start_time": 6.0,
+          "end_time": 10.0,
+          "source_start": 10.0,
+          "volume": 1.0,
+          "fade_in": 1.0,
+          "fade_out": 0.5
+        }
+      ]
+    }
+  ]
+}
