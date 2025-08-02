@@ -33,6 +33,7 @@ By defining your video structure, assets, and desired effects in a human-readabl
 ## Features
 
 - **Declarative Composition**: Define your entire video project in a single SWML file
+- **Background Color Support**: Set solid background colors for your compositions using RGB values
 - **Blender VSE Integration**: Leverages Blender's robust video editing capabilities
 - **Automatic Media Handling**: Handles image and video sources with automatic framerate conversion
 - **Flexible Transformations**: Define clip size, position, and anchor points using pixel or cartesian coordinates
@@ -105,7 +106,8 @@ Here's a simple SWML file (`example.swml`):
     "width": 1280,
     "height": 720,
     "fps": 30,
-    "duration": 10
+    "duration": 10,
+    "background_color": [0.2, 0.3, 0.5]
   },
   "sources": [
     {
@@ -216,6 +218,7 @@ Defines global properties of the output video:
 | `fps` | number | Yes | Frames per second | - |
 | `duration` | number | No | Total duration in seconds | Auto-calculated |
 | `output_format` | string | No | Output format ("mp4", "mov", "webm") | "mp4" |
+| `background_color` | array | No | Background color as RGB array [R, G, B] (values 0.0-1.0) | [0.0, 0.0, 0.0] |
 
 ### Sources
 

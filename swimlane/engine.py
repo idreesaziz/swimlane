@@ -484,6 +484,28 @@ class SwimlaneEngine:
             self._warn(f"Composition duration '{comp['duration']}' is invalid or non-positive. Setting to a default of 10.0 seconds.")
             data['composition']['duration'] = 10.0 # Coerce to a minimum reasonable value
 
+        # Handle background color: optional, default to black if not specified or invalid
+        if 'background_color' not in comp:
+            data['composition']['background_color'] = [0.0, 0.0, 0.0]  # Default to black
+        else:
+            bg_color = comp['background_color']
+            if not isinstance(bg_color, list) or len(bg_color) != 3:
+                self._warn(f"Composition background_color '{bg_color}' must be a list of 3 numbers [R, G, B]. Using default black.")
+                data['composition']['background_color'] = [0.0, 0.0, 0.0]
+            else:
+                # Validate and clamp RGB values to 0.0-1.0 range
+                clamped_color = []
+                for i, channel in enumerate(bg_color):
+                    if not isinstance(channel, (int, float)):
+                        self._warn(f"Composition background_color channel {i} '{channel}' is not a number. Using 0.0.")
+                        clamped_color.append(0.0)
+                    else:
+                        clamped_val = max(0.0, min(1.0, float(channel)))
+                        if clamped_val != channel:
+                            self._warn(f"Composition background_color channel {i} '{channel}' clamped to range [0.0, 1.0]: {clamped_val}")
+                        clamped_color.append(clamped_val)
+                data['composition']['background_color'] = clamped_color
+
 
         # --- Validate Sources ---
         abs_swml_dir = os.path.dirname(os.path.abspath(self.swml_path))
