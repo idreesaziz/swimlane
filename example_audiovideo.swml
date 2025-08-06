@@ -1,0 +1,54 @@
+{
+  "composition": {
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "duration": 10.0,
+    "background_color": [0.1, 0.1, 0.2]
+  },
+  "sources": [
+    {
+      "id": "movie_with_sound",
+      "path": "media/background.mp4"
+    }
+  ],
+  "tracks": [
+    {
+      "id": "main_content",
+      "type": "audiovideo",
+      "clips": [
+        {
+          "id": "movie_clip",
+          "source_id": "movie_with_sound",
+          "start_time": 0.0,
+          "end_time": 5.0,
+          "volume": 0.8,
+          "transform": {
+            "size": {
+              "scale": [0.9, 0.9]
+            },
+            "position": {
+              "cartesian": [0, 0]
+            }
+          }
+        },
+        {
+          "id": "movie_clip2",
+          "source_id": "movie_with_sound",
+          "start_time": 5.0,
+          "end_time": 10.0,
+          "source_start": 40.0,
+          "volume": 0.8,
+          "transform": {
+            "size": {
+              "scale": [0.9, 0.9]
+            },
+            "position": {
+              "cartesian": [0, 0]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

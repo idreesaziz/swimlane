@@ -268,6 +268,12 @@ class SwimlaneEngine:
         for track_idx, track in enumerate(data['tracks']):
             track_id = track.get('id', f"track_{track_idx}") # Use index as fallback ID for warnings
             track.setdefault('type', 'video')
+            
+            # Validate track type
+            valid_track_types = ['video', 'audio', 'audiovideo']
+            if track['type'] not in valid_track_types:
+                self._warn(f"Track {track_id} has invalid type '{track['type']}'. Valid types are: {', '.join(valid_track_types)}. Defaulting to 'video'.")
+                track['type'] = 'video'
 
             clips = track.get('clips', [])
             
@@ -340,7 +346,7 @@ class SwimlaneEngine:
                 clip['end_time'] = end_time
 
                 # Validate and coerce audio clip properties
-                if track.get('type') == 'audio':
+                if track.get('type') in ['audio', 'audiovideo']:
                     # Volume
                     volume = clip.get('volume', 1.0)
                     if not isinstance(volume, (int, float)):
@@ -377,7 +383,7 @@ class SwimlaneEngine:
                 all_clips_map[clip['id']] = clip
 
         for track_idx, track in enumerate(data['tracks']):
-            if track.get('type', 'video') != 'video': 
+            if track.get('type', 'video') not in ['video', 'audiovideo']: 
                 continue
             
             track_id = track.get('id', f"track_{track_idx}")
@@ -540,8 +546,8 @@ class SwimlaneEngine:
         if data['composition'].get('duration') is None:
             max_clip_end_time = 0.0
             for track in data['tracks']:
-                # Only consider video/audio tracks for duration calculation
-                if track.get('type') in ['video', 'audio']: # Audio tracks also contribute to overall duration
+                # Only consider video/audio/audiovideo tracks for duration calculation
+                if track.get('type') in ['video', 'audio', 'audiovideo']: # Audio and audiovideo tracks also contribute to overall duration
                     for clip in track.get('clips', []):
                         # clip['end_time'] is guaranteed to be a number by _validate_tracks_and_clips
                         max_clip_end_time = max(max_clip_end_time, clip['end_time'])
@@ -583,8 +589,8 @@ class SwimlaneEngine:
     def _scale_transforms_for_preview(self, swml_data: Dict[str, Any], scale_factor: float):
         """Scale transform pixel values for preview mode while preserving cartesian coordinates."""
         for track in swml_data.get('tracks', []):
-            if track.get('type', 'video') != 'video':
-                continue  # Only process video tracks
+            if track.get('type', 'video') not in ['video', 'audiovideo']:
+                continue  # Only process video and audiovideo tracks
                 
             for clip in track.get('clips', []):
                 # Get source dimensions for scaling calculations
@@ -812,8 +818,8 @@ class SwimlaneEngine:
 
             # Now, after parsing, do final critical checks based on fully processed data
             audio_source_issues, video_source_issues = [], []
-            audio_source_ids = {c['source_id'] for t in self.swml_data.get('tracks', []) if t.get('type') == 'audio' for c in t.get('clips', [])}
-            video_source_ids = {c['source_id'] for t in self.swml_data.get('tracks', []) if t.get('type', 'video') == 'video' for c in t.get('clips', [])}
+            audio_source_ids = {c['source_id'] for t in self.swml_data.get('tracks', []) if t.get('type') in ['audio', 'audiovideo'] for c in t.get('clips', [])}
+            video_source_ids = {c['source_id'] for t in self.swml_data.get('tracks', []) if t.get('type', 'video') in ['video', 'audiovideo'] for c in t.get('clips', [])}
 
             for source in self.swml_data['sources']:
                 sid = source.get('id')

@@ -34,6 +34,7 @@ By defining your video structure, assets, and desired effects in a human-readabl
 
 - **Declarative Composition**: Define your entire video project in a single SWML file
 - **Background Color Support**: Set solid background colors for your compositions using RGB values
+- **Flexible Track Types**: Support for video-only, audio-only, and combined audiovideo tracks
 - **Blender VSE Integration**: Leverages Blender's robust video editing capabilities
 - **Automatic Media Handling**: Handles image and video sources with automatic framerate conversion
 - **Flexible Transformations**: Define clip size, position, and anchor points using pixel or cartesian coordinates
@@ -231,14 +232,19 @@ Array of media files used in the project:
 
 ### Tracks
 
-Array of video or audio tracks:
+Array of video, audio, or combined audiovideo tracks:
 
 | Property | Type | Required | Description | Default |
 |----------|------|----------|-------------|---------|
 | `id` | string | No | Unique identifier | Auto-generated |
-| `type` | string | No | Track type ("video" or "audio") | "video" |
+| `type` | string | No | Track type ("video", "audio", or "audiovideo") | "video" |
 | `clips` | array | No | Array of clip objects | [] |
 | `transitions` | array | No | Array of transition objects | [] |
+
+**Track Types:**
+- `"video"`: Video-only track with visual transforms and transitions
+- `"audio"`: Audio-only track with volume and fade controls  
+- `"audiovideo"`: Combined track that processes both video and audio from the same source
 
 ### Clips
 

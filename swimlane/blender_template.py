@@ -50,25 +50,7 @@ def setup_scene():
     # Additional VSE enforcement settings
     scene.render.resolution_percentage = 100
     
-    # For audio-only compositions, add a black color strip to provide visual content
-    # This prevents Blender from falling back to 3D scene rendering
-    vse = scene.sequence_editor
-    has_video_sequences = any(seq.type in ['MOVIE', 'IMAGE'] for seq in vse.sequences if vse.sequences)
-    
-    if not has_video_sequences:
-        # Add a black color strip for the entire duration to provide visual content
-        print("DEBUG: Audio-only composition detected - adding black color strip to prevent 3D rendering")
-        color_strip = vse.sequences.new_effect(
-            name="black_background",
-            type='COLOR',
-            channel=2,  # Use channel 2 to avoid conflicts with audio on channel 1
-            frame_start=1,
-            frame_end=scene.frame_end
-        )
-        color_strip.color = (0.0, 0.0, 0.0)  # Pure black
-        print(f"DEBUG: Added black color strip from frame 1 to {scene.frame_end}")
-    
-    # Clear 3D scene mesh objects as backup (but color strip should prevent 3D rendering)
+    # Clear 3D scene mesh objects as backup (color strip will be added later)
     bpy.ops.object.select_all(action='DESELECT')
     for obj in bpy.context.scene.objects:
         if obj.type == 'MESH':  # Only delete mesh objects (cube, etc.)
@@ -124,6 +106,21 @@ def setup_scene():
         for seq in list(sequences):
             sequences.remove(seq)
     
+    # Add background color strip AFTER clearing sequences
+    # This provides a background color and prevents Blender from falling back to 3D scene rendering
+    bg_color = comp.get('background_color', [0.0, 0.0, 0.0])  # Default to black if not specified
+    
+    print(f"DEBUG: Adding background color strip with color RGB: {bg_color}")
+    color_strip = scene.sequence_editor.sequences.new_effect(
+        name="background_color",
+        type='COLOR',
+        channel=1,  # Use channel 1 as the background layer
+        frame_start=1,
+        frame_end=scene.frame_end
+    )
+    color_strip.color = tuple(bg_color)  # Convert list to tuple for Blender
+    print(f"DEBUG: Added background color strip from frame 1 to {scene.frame_end}")
+    
     print("Blender scene setup complete.")
     return scene, scene.sequence_editor
 
@@ -137,13 +134,21 @@ def process_tracks(scene, vse):
     # A map to store created strips for linking transitions
     clip_strip_map = {}
 
+    current_channel = 2  # Start from channel 2 to avoid background on channel 1
     for i, track in enumerate(sorted_tracks):
-        base_channel = i * 3 + 1  # Use 3 channels per track (A, B, effects)
+        track_type = track.get('type', 'video')
         
-        if track.get('type') == 'audio':
-            process_audio_track(vse, track, base_channel, fps)
+        if track_type == 'audio':
+            process_audio_track(vse, track, current_channel, fps)
+            current_channel += 1  # Audio tracks use 1 channel
+        elif track_type == 'audiovideo':
+            # Process both video and audio for audiovideo tracks
+            process_video_track(vse, track, current_channel, fps, clip_strip_map)
+            process_audio_track(vse, track, current_channel + 3, fps)  # Audio goes after A, B, effects channels
+            current_channel += 4  # Audiovideo tracks use 4 channels (A, B, effects, audio)
         else: # Default is 'video'
-            process_video_track(vse, track, base_channel, fps, clip_strip_map)
+            process_video_track(vse, track, current_channel, fps, clip_strip_map)
+            current_channel += 3  # Video tracks use 3 channels (A, B, effects)
 
     # Post-process to create cross-transitions
     create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map)
@@ -393,7 +398,7 @@ def apply_simple_transitions(vse, strip, clip_id, transitions, fps):
 
 def create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map):
     for track in sorted_tracks:
-        if track.get('type', 'video') != 'video': 
+        if track.get('type', 'video') not in ['video', 'audiovideo']: 
             continue
         
         transitions = track.get('transitions', [])
@@ -418,7 +423,7 @@ def create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map):
             # The transition effect needs to be on the effects channel (highest for this track)
             # Calculate the base channel for this track and use the effects channel
             track_index = next(i for i, t in enumerate(sorted_tracks) if t.get('id') == track.get('id'))
-            effects_channel = track_index * 3 + 3  # Third channel of the A/B/Effects trio
+            effects_channel = track_index * 3 + 4  # Third channel of the A/B/Effects trio, adjusted for background on channel 1
             
             # Get transition type and create appropriate effect
             transition_type = transition.get('effect', 'fade')
