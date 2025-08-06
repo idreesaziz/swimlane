@@ -1,184 +1,355 @@
 # Swimlane Engine
 
-A declarative video rendering engine powered by Blender's Video Sequence Editor (VSE). Define your video composition, sources, tracks, and clips using the **Swimlane Markup Language (SWML)**, and let Swimlane Engine handle the complex video editing operations in Blender.
+## Declarative Video Rendering with Blender's VSE
 
-## Table of Contents
+Swimlane Engine is a command-line tool that allows you to define video compositions declaratively using a JSON-based language called **SWML (Swimlane Markup Language)**. It leverages Blender's Video Sequence Editor (VSE) as its rendering backend, offering powerful composition capabilities without requiring direct Blender UI interaction.
 
-- [Introduction](#introduction)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Command Line Interface](#command-line-interface)
-  - [Basic Example](#basic-example)
-- [SWML Reference](#swml-reference)
-  - [General Structure](#general-structure)
-  - [Composition](#composition)
-  - [Sources](#sources)
-  - [Tracks](#tracks)
-  - [Clips](#clips)
-  - [Transforms](#transforms)
-  - [Transitions](#transitions)
-- [Examples](#examples)
-- [Development](#development)
-- [License](#license)
-- [Roadmap](#roadmap)
-
-## Introduction
-
-Creating videos with dynamic content often involves cumbersome processes with complex timelines, manual adjustments, and scripting in traditional video editors. Swimlane Engine simplifies this by providing a declarative, text-based approach to video composition.
-
-By defining your video structure, assets, and desired effects in a human-readable JSON format (SWML), Swimlane Engine automates the rendering process using Blender's powerful Video Sequence Editor. This enables reproducible, version-controlled, and programmatic video generation.
+This engine simplifies video creation by focusing on "what" you want to see rather than "how" to achieve it in a complex editor.
 
 ## Features
 
-- **Declarative Composition**: Define your entire video project in a single SWML file
-- **Background Color Support**: Set solid background colors for your compositions using RGB values
-- **Flexible Track Types**: Support for video-only, audio-only, and combined audiovideo tracks
-- **Blender VSE Integration**: Leverages Blender's robust video editing capabilities
-- **Automatic Media Handling**: Handles image and video sources with automatic framerate conversion
-- **Flexible Transformations**: Define clip size, position, and anchor points using pixel or cartesian coordinates
-- **Audio Control**: Adjust volume and apply fade effects on audio clips
-- **Transition Effects**: Supports fade, wipe, and dissolve transitions between clips
-- **Preview Mode**: Fast, low-quality rendering for quick iteration
-- **Error Reporting**: Provides clear feedback on SWML parsing and validation issues
-- **Cross-Platform**: Runs wherever Python and Blender are supported
-
-## Prerequisites
-
-Before installing Swimlane Engine, ensure you have the following software:
-
-1. **Blender (v3.0 or later)**
-   - Download from [blender.org](https://www.blender.org/download/)
-   - Ensure the `blender` executable is in your system's PATH
-
-2. **FFmpeg & FFprobe**
-   - Used for media probing and preprocessing
-   - Download from [ffmpeg.org](https://ffmpeg.org/download.html)
-   - Ensure both are in your system's PATH
+- **Declarative Composition:** Define your video structure, sources, clips, and effects in a human-readable JSON format.
+- **Blender VSE Backend:** Utilizes Blender's robust video sequencing capabilities for high-quality rendering.
+- **Flexible Source Handling:** Supports various video, audio, and image formats.
+- **Automated Preprocessing:** Automatically converts video sources to the composition's target framerate using FFmpeg to ensure smooth playback and consistent timing.
+- **Transformations:** Control clip size, position, and anchor points with flexible pixel or cartesian coordinate systems.
+- **Transitions:** Implement various transitions like fades, wipes, and dissolves between clips.
+- **Audio Control:** Adjust clip volume, apply fade-in/out effects, and mix multiple audio tracks.
+- **Preview Mode:** Generate quick, lower-resolution, lower-framerate previews for rapid iteration (internal flag, not exposed via CLI currently).
 
 ## Installation
 
-Install Swimlane Engine via pip:
+To use Swimlane Engine, you'll need the following:
 
-```bash
-pip install swimlane
-```
+1. **Python 3:** Ensure you have Python 3 installed.
 
-This installs the necessary Python dependencies and makes the `swimlane` command available in your terminal.
+2. **`ffmpeg-python` library:**
+   ```bash
+   pip install ffmpeg-python
+   ```
+
+3. **Blender:** Download and install Blender.
+   - For command-line usage, ensure the Blender executable is either in your system's `PATH` environment variable or you provide its full path when running the engine.
+   - **Windows Example:** `C:\Program Files\Blender Foundation\Blender\blender.exe`
+   - **macOS Example:** `/Applications/Blender.app/Contents/MacOS/blender`
+   - **Linux Example:** Often `/usr/bin/blender` if installed via package manager.
+
+4. **FFmpeg:** Download and install FFmpeg. It is required for source probing and video preprocessing (framerate conversion).
+   - Ensure the `ffmpeg` and `ffprobe` executables are in your system's `PATH`.
 
 ## Usage
 
-### Command Line Interface
+To render a video, run the `engine.py` script from your terminal:
 
 ```bash
-swimlane [--preview] <input.swml> <output.mp4> [path/to/blender]
+python engine.py <input.swml> <output_file> [path/to/blender_executable]
 ```
 
 **Arguments:**
-- `<input.swml>`: Path to your SWML input file
-- `<output.mp4>`: Path for the output video file (supports .mp4, .mov, .webm)
-- `[path/to/blender]`: Optional path to Blender executable
 
-**Options:**
-- `--preview`: Use fast/low quality render settings for quick previews
-- `--help, -h`: Show help message
+- `<input.swml>`: The path to your SWML composition file.
+- `<output_file>`: The desired path for the rendered video output. The file extension (`.mp4`, `.mov`, `.webm`) will determine the output format and corresponding Blender codecs.
+- `[path/to/blender_executable]`: (Optional) The full path to your Blender executable. If omitted, the engine will attempt to find `blender` in your system's `PATH`.
 
 **Examples:**
 
 ```bash
-# Basic render
-swimlane my_project.swml output_video.mp4
+# Basic usage (assuming Blender and FFmpeg are in PATH)
+python engine.py my_composition.swml output.mp4
 
-# Preview mode
-swimlane --preview my_project.swml preview.mp4
+# Specifying Blender path on Windows
+python engine.py my_composition.swml output.mp4 "C:\Program Files\Blender Foundation\Blender\blender.exe"
 
-# Custom Blender path
-swimlane my_project.swml output.mp4 /Applications/Blender.app/Contents/MacOS/Blender
+# Specifying Blender path on macOS/Linux
+python engine.py my_composition.swml output.mp4 /Applications/Blender.app/Contents/MacOS/blender
 ```
 
-### Basic Example
+## Swimlane Markup Language (SWML) Specification
 
-Here's a simple SWML file (`example.swml`):
+SWML files are JSON documents that define your video project. They must contain three top-level keys: `composition`, `sources`, and `tracks`.
+
+**Note on Comments:** SWML supports C-style comments (`//` for single-line and `/* ... */` for multi-line) within the JSON file. These comments are stripped *before* JSON parsing, allowing for human-friendly annotations.
+
+### Root Structure
 
 ```json
+{
+  "composition": { /* ... defines global video properties */ },
+  "sources": [ /* ... lists all media files used */ ],
+  "tracks": [ /* ... defines layers of clips and transitions */ ]
+}
+```
+
+### 1. `composition` Object
+
+Defines the overall properties of the output video.
+
+| Key | Type | Required | Description | Default | Validation / Coercion |
+|:----|:-----|:---------|:------------|:--------|:---------------------|
+| `width` | `number` | Yes | Output video width in pixels. | None | Must be a positive number. Coerced to `1` if non-positive. |
+| `height` | `number` | Yes | Output video height in pixels. | None | Must be a positive number. Coerced to `1` if non-positive. |
+| `fps` | `number` | Yes | Output video frames per second. | None | Must be a positive number. Coerced to `1` if non-positive. |
+| `duration` | `number` | No | Total duration of the composition in seconds. If omitted, it's calculated as the `end_time` of the latest clip across all tracks. | Calculated max clip end time (min 0.001s) | Must be a positive number. If specified and non-positive, coerced to `10.0` seconds. |
+| `output_format` | `string` | No | The desired output video container format. Supported values: `mp4`, `mov`, `webm`. Determines the FFmpeg codecs used in Blender. | `"mp4"` | If unsupported, defaults to `mp4`. |
+| `background_color` | `array` | No | An array of three numbers `[R, G, B]` representing the background color of the composition. Each value should be between `0.0` (0%) and `1.0` (100%). This is rendered as a full-screen color strip in Blender's VSE on the lowest channel (channel 1). | `[0.0, 0.0, 0.0]` (black) | Must be an array of 3 numbers. Values outside `[0.0, 1.0]` are clamped. Invalid formats default to black. |
+
+### 2. `sources` Array
+
+Lists all media assets (videos, audios, images) used in the composition.
+
+| Key | Type | Required | Description |
+|:----|:-----|:---------|:------------|
+| `id` | `string` | Yes | A unique identifier for this source, referenced by clips. |
+| `path` | `string` | Yes | The file path to the media asset. Can be absolute or relative to the SWML file's location. The engine probes each source to determine its type, duration, and dimensions. |
+
+### 3. `tracks` Array
+
+Defines parallel timelines (layers) of clips. Clips on higher-indexed channels will appear "on top" visually. The engine assigns channels automatically based on track type and order.
+
+| Key | Type | Required | Description | Default | Validation |
+|:----|:-----|:---------|:------------|:--------|:----------|
+| `id` | `string` | No | An optional identifier for the track, useful for debugging. | `track_N` | |
+| `type` | `string` | No | The primary type of content this track handles. Supported values: `video`, `audio`, `audiovideo`. This helps the engine determine how to manage channels and effects. | `"video"` | If invalid, defaults to `"video"`. |
+| `clips` | `array` | No | An array of `clip` objects, defining media segments placed on this track. | `[]` | All `clip.id`s within a single track must be unique. |
+| `transitions` | `array` | No | An array of `transition` objects, defining how clips on this track transition between each other or fade in/out. | `[]` | References `clip.id`s. |
+
+#### 3.1. `clip` Object (within `tracks.clips`)
+
+Represents a segment of a source asset placed on the timeline.
+
+| Key | Type | Required | Description | Default | Validation / Coercion |
+|:----|:-----|:---------|:------------|:--------|:---------------------|
+| `id` | `string` | Yes | A unique identifier for this clip within its track. Used for referencing in transitions. | None | Must be unique within its track. |
+| `source_id` | `string` | Yes | The `id` of a source defined in the top-level `sources` array. | None | Must reference an existing `source.id`. Critical error if not found. |
+| `start_time` | `number` | No | The time (in seconds) on the composition timeline where this clip begins. | `0.0` | Must be a non-negative number. Invalid values are coerced to `0.0`. |
+| `end_time` | `number` | No | The time (in seconds) on the composition timeline where this clip ends. If omitted:<br>- For **images**: Defaults to `start_time + 5.0` seconds<br>- For **videos/audio**: Defaults to `start_time + (source_duration - source_start)` | Calculated | Must be a number. If `end_time <= start_time`, it's coerced to `start_time + (1/fps)` (minimum 1 frame duration). |
+| `source_start` | `number` | No | For video/audio sources, the time (in seconds) from the beginning of the *source file* where this clip should start reading. | `0.0` | Must be a non-negative number. If beyond source duration, coerced to `0.0`. |
+| `volume` | `number` | No | For `audio` or `audiovideo` tracks. The volume level of the clip, from `0.0` (silent) to `1.0` (full volume). | `1.0` | Must be non-negative. If negative, clamped to `0.0`. |
+| `fade_in` | `number` | No | For `audio` or `audiovideo` tracks. The duration (in seconds) of an audio fade-in effect at the beginning of the clip. | `0.0` | Must be non-negative. Invalid values coerced to `0.0`. |
+| `fade_out` | `number` | No | For `audio` or `audiovideo` tracks. The duration (in seconds) of an audio fade-out effect at the end of the clip. | `0.0` | Must be non-negative. Invalid values coerced to `0.0`. |
+| `transform` | `object` | No | An object containing transformation properties (size, position, anchor) for video/image clips. | None (no transformation) | Invalid properties are warned and removed. |
+
+#### `transform` Object (within `clip`)
+
+Defines how a video or image clip is scaled and positioned on the screen. Transformations are applied in order: `size` (pixels then scale), then `position` (affected by `anchor`).
+
+| Key | Type | Required | Description |
+|:----|:-----|:---------|:------------|
+| `size` | `object` | No | Defines the dimensions of the clip. |
+| `position` | `object` | No | Defines the clip's placement relative to the composition. |
+| `anchor` | `object` | No | Defines the point on the clip used for positioning. |
+
+##### `transform.size` Object
+
+Controls the width and height of the clip. The `pixels` property is applied first, then `scale` is applied as a multiplier.
+
+| Key | Type | Required | Description | Validation |
+|:----|:-----|:---------|:------------|:-----------|
+| `pixels` | `array` | No | `[width, height]` in pixels. Sets exact pixel dimensions. | Must be array of two numbers. |
+| `scale` | `array` | No | `[scale_x, scale_y]` as multipliers (e.g., `[0.5, 0.5]` for half size). | Must be array of two numbers. Values clamped to minimum `0.001`. |
+
+**Examples:**
+```json
+"size": {"pixels": [640, 360]}  // Clip will be 640x360 pixels
+"size": {"scale": [0.5, 0.5]}   // Clip will be half its original size
+"size": {"pixels": [640, 360], "scale": [2.0, 2.0]}  // 640x360, then scaled to 1280x720
+```
+
+##### `transform.position` Object
+
+Defines where the clip is placed on the composition canvas.
+
+**Precedence:** If both `pixels` and `cartesian` are provided, `cartesian` takes precedence.
+
+| Key | Type | Required | Description | Validation |
+|:----|:-----|:---------|:------------|:-----------|
+| `pixels` | `array` | No | `[x, y]` coordinates in pixels from top-left corner. | Must be array of two numbers. |
+| `cartesian` | `array` | No | `[x, y]` coordinates where `[0,0]` is center, `[-1,-1]` is top-left, `[1,1]` is bottom-right. | Must be array of two numbers. |
+
+**Examples:**
+```json
+"position": {"pixels": [100, 50]}        // Top-left at x=100, y=50
+"position": {"cartesian": [0.0, 0.0]}    // Center of composition
+"position": {"cartesian": [-1.0, 1.0]}   // Bottom-left of composition
+```
+
+##### `transform.anchor` Object
+
+The anchor point defines which part of the clip is used for positioning.
+
+**Precedence:** If both `pixels` and `cartesian` are provided, `cartesian` takes precedence.
+
+| Key | Type | Required | Description | Validation |
+|:----|:-----|:---------|:------------|:-----------|
+| `pixels` | `array` | No | `[x, y]` pixel coordinates relative to clip's top-left corner. | Must be array of two numbers. |
+| `cartesian` | `array` | No | `[x, y]` coordinates relative to clip's center. `[-1,-1]` = top-left, `[0,0]` = center, `[1,1]` = bottom-right. | Must be array of two numbers. |
+
+**Examples:**
+```json
+"anchor": {"pixels": [0, 0]}         // Anchor at clip's top-left
+"anchor": {"cartesian": [0.0, 0.0]}  // Anchor at clip's center
+"anchor": {"cartesian": [-1.0, 1.0]} // Anchor at clip's bottom-left
+```
+
+#### 3.2. `transition` Object (within `tracks.transitions`)
+
+Defines how clips fade in, fade out, or cross-fade between each other.
+
+| Key | Type | Required | Description | Default | Validation |
+|:----|:-----|:---------|:------------|:--------|:-----------|
+| `from_clip` | `string` | No | The ID of the clip transitioning out. For fade-out only, set `to_clip` to `null`. | None | Must reference existing clip ID or be `null`. |
+| `to_clip` | `string` | No | The ID of the clip transitioning in. For fade-in only, set `from_clip` to `null`. | None | Must reference existing clip ID or be `null`. |
+| `duration` | `number` | No | Duration of the transition in seconds. | `1.0` | Must be positive number. |
+| `effect` | `string` | No | Type of transition effect: `fade`, `wipe`, `dissolve`. | `"fade"` | Unsupported effects default to `fade`. |
+| `direction` | `string` | No | For `wipe` transitions: `left_to_right`, `right_to_left`, `top_to_bottom`, `bottom_to_top`. | `"left_to_right"` | Only applies to wipe transitions. |
+
+## Example SWML File
+
+Save this as `my_composition.swml` and ensure you have corresponding media files:
+
+```json
+/*
+  Example SWML Composition
+  This JSON demonstrates various features of the Swimlane Markup Language.
+*/
 {
   "composition": {
     "width": 1280,
     "height": 720,
     "fps": 30,
-    "duration": 10,
-    "background_color": [0.2, 0.3, 0.5]
+    "duration": 60,
+    "output_format": "mp4",
+    "background_color": [0.1, 0.1, 0.2]
   },
   "sources": [
     {
       "id": "intro_video",
-      "path": "media/intro.mp4"
+      "path": "./assets/intro.mp4"
     },
     {
-      "id": "logo",
-      "path": "media/logo.png"
+      "id": "main_footage", 
+      "path": "./assets/main_video.mov"
     },
     {
-      "id": "music",
-      "path": "media/background.mp3"
+      "id": "logo_image",
+      "path": "./assets/logo.png"
+    },
+    {
+      "id": "background_music",
+      "path": "./assets/music.mp3"
+    },
+    {
+      "id": "outro_audio",
+      "path": "./assets/outro_voiceover.wav"
     }
   ],
   "tracks": [
     {
-      "id": "video_track",
+      "id": "background_layer",
       "type": "video",
       "clips": [
         {
-          "id": "intro_clip",
-          "source_id": "intro_video",
+          "id": "clip_intro_bg",
+          "source_id": "intro_video", 
           "start_time": 0.0,
-          "end_time": 8.0,
+          "end_time": 10.0,
           "transform": {
-            "size": {
-              "scale": [0.8, 0.8]
-            },
-            "position": {
-              "cartesian": [0, 0]
-            }
+            "size": {"scale": [1.2, 1.2]},
+            "position": {"cartesian": [0.0, 0.0]}
           }
         },
         {
-          "id": "logo_clip",
-          "source_id": "logo",
-          "start_time": 6.0,
-          "end_time": 10.0,
+          "id": "clip_main_bg",
+          "source_id": "main_footage",
+          "start_time": 8.0,
+          "end_time": 58.0,
           "transform": {
-            "size": {
-              "pixels": [200, 150]
-            },
-            "position": {
-              "pixels": [100, 100]
-            }
+            "size": {"scale": [1.0, 1.0]}
           }
         }
       ],
       "transitions": [
         {
-          "from_clip": "intro_clip",
-          "to_clip": "logo_clip",
+          "from_clip": "clip_intro_bg",
+          "to_clip": "clip_main_bg", 
           "duration": 2.0,
           "effect": "fade"
         }
       ]
     },
     {
-      "id": "audio_track",
+      "id": "foreground_layer",
+      "type": "video",
+      "clips": [
+        {
+          "id": "logo_appearance",
+          "source_id": "logo_image",
+          "start_time": 5.0,
+          "end_time": 15.0,
+          "transform": {
+            "size": {"pixels": [200, 200]},
+            "position": {"pixels": [50, 50]},
+            "anchor": {"pixels": [0, 0]}
+          }
+        },
+        {
+          "id": "logo_movement",
+          "source_id": "logo_image",
+          "start_time": 15.0,
+          "end_time": 20.0,
+          "transform": {
+            "size": {"pixels": [200, 200]},
+            "position": {"cartesian": [0.8, 0.8]},
+            "anchor": {"cartesian": [1.0, 1.0]}
+          }
+        }
+      ],
+      "transitions": [
+        {
+          "from_clip": "logo_appearance",
+          "to_clip": null,
+          "duration": 1.0,
+          "effect": "fade"
+        },
+        {
+          "from_clip": null,
+          "to_clip": "logo_movement",
+          "duration": 1.0,
+          "effect": "fade"
+        },
+        {
+          "from_clip": "logo_movement",
+          "to_clip": null,
+          "duration": 0.5,
+          "effect": "fade"
+        }
+      ]
+    },
+    {
+      "id": "music_track",
       "type": "audio",
       "clips": [
         {
-          "id": "music_clip",
-          "source_id": "music",
+          "id": "main_music",
+          "source_id": "background_music",
           "start_time": 0.0,
-          "end_time": 10.0,
+          "end_time": 55.0,
           "volume": 0.7,
-          "fade_in": 1.0,
-          "fade_out": 1.5
+          "fade_in": 2.0,
+          "fade_out": 3.0
+        }
+      ]
+    },
+    {
+      "id": "voiceover_track",
+      "type": "audio", 
+      "clips": [
+        {
+          "id": "outro_vo",
+          "source_id": "outro_audio",
+          "start_time": 50.0,
+          "volume": 1.0,
+          "fade_in": 1.0
         }
       ]
     }
@@ -186,159 +357,6 @@ Here's a simple SWML file (`example.swml`):
 }
 ```
 
-Render with:
-
-```bash
-swimlane example.swml output.mp4
-```
-
-## SWML Reference
-
-SWML files are JSON documents with support for C-style comments (`//` and `/* */`).
-
-### General Structure
-
-A SWML document contains three top-level sections:
-
-```json
-{
-  "composition": { /* Video properties */ },
-  "sources": [ /* Media assets */ ],
-  "tracks": [ /* Video and audio tracks */ ]
-}
-```
-
-### Composition
-
-Defines global properties of the output video:
-
-| Property | Type | Required | Description | Default |
-|----------|------|----------|-------------|---------|
-| `width` | integer | Yes | Output width in pixels | - |
-| `height` | integer | Yes | Output height in pixels | - |
-| `fps` | number | Yes | Frames per second | - |
-| `duration` | number | No | Total duration in seconds | Auto-calculated |
-| `output_format` | string | No | Output format ("mp4", "mov", "webm") | "mp4" |
-| `background_color` | array | No | Background color as RGB array [R, G, B] (values 0.0-1.0) | [0.0, 0.0, 0.0] |
-
-### Sources
-
-Array of media files used in the project:
-
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `id` | string | Yes | Unique identifier |
-| `path` | string | Yes | File path (absolute or relative to SWML file) |
-
-### Tracks
-
-Array of video, audio, or combined audiovideo tracks:
-
-| Property | Type | Required | Description | Default |
-|----------|------|----------|-------------|---------|
-| `id` | string | No | Unique identifier | Auto-generated |
-| `type` | string | No | Track type ("video", "audio", or "audiovideo") | "video" |
-| `clips` | array | No | Array of clip objects | [] |
-| `transitions` | array | No | Array of transition objects | [] |
-
-**Track Types:**
-- `"video"`: Video-only track with visual transforms and transitions
-- `"audio"`: Audio-only track with volume and fade controls  
-- `"audiovideo"`: Combined track that processes both video and audio from the same source
-
-### Clips
-
-Media segments on a track:
-
-| Property | Type | Required | Description | Default |
-|----------|------|----------|-------------|---------|
-| `id` | string | Yes | Unique identifier within track | - |
-| `source_id` | string | Yes | References a source ID | - |
-| `start_time` | number | No | Start time on timeline (seconds) | 0.0 |
-| `end_time` | number | No | End time on timeline (seconds) | Auto-calculated |
-| `source_start` | number | No | Start time in source file (seconds) | 0.0 |
-| `volume` | number | No | Audio volume (0.0-1.0+) | 1.0 |
-| `fade_in` | number | No | Audio fade-in duration (seconds) | 0.0 |
-| `fade_out` | number | No | Audio fade-out duration (seconds) | 0.0 |
-| `transform` | object | No | Visual transformations (video only) | None |
-
-### Transforms
-
-Visual transformations for video clips:
-
-```json
-{
-  "transform": {
-    "size": {
-      "pixels": [width, height],    // Absolute size
-      "scale": [scaleX, scaleY]     // Relative scale
-    },
-    "position": {
-      "pixels": [x, y],             // Absolute position
-      "cartesian": [x, y]           // Relative position (-1 to 1)
-    },
-    "anchor": {
-      "pixels": [x, y],             // Absolute anchor point
-      "cartesian": [x, y]           // Relative anchor point (-1 to 1)
-    }
-  }
-}
-```
-
-**Coordinate Systems:**
-- **Pixels**: Absolute coordinates from top-left corner
-- **Cartesian**: Relative coordinates where (0,0) is center, (-1,-1) is top-left, (1,1) is bottom-right
-
-### Transitions
-
-Visual effects between clips (video tracks only):
-
-| Property | Type | Required | Description | Default |
-|----------|------|----------|-------------|---------|
-| `from_clip` | string | * | Source clip ID | - |
-| `to_clip` | string | * | Target clip ID | - |
-| `duration` | number | No | Transition duration (seconds) | 1.0 |
-| `effect` | string | No | Effect type ("fade", "wipe", "dissolve") | "fade" |
-| `direction` | string | No | Wipe direction | "left_to_right" |
-
-*At least one of `from_clip` or `to_clip` is required.
-
-**Transition Types:**
-- **Cross-transition**: Both clips specified (crossfade, wipe, dissolve)
-- **Simple fade**: One clip specified (fade-in or fade-out)
-
-## Examples
-
-The package includes example SWML files in the `examples/` directory demonstrating various features with placeholder media files.
-
-## Development
-
-### Project Structure
-
-- `cli.py`: Command-line interface and argument parsing
-- `engine.py`: Core engine logic, SWML parsing, and validation
-- `blender_template.py`: Python script template executed by Blender
-- `.swimlane_cache/`: Directory for transcoded video sources (filename includes framerate for cache uniqueness)
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Implement changes with tests
-4. Ensure existing tests pass
-5. Submit a pull request
-
 ## License
 
-This project is licensed under the MIT License.
-
-## Roadmap
-
-Future enhancements may include:
-
-- Advanced transitions and effects
-- Keyframe animation support  
-- Text overlay capabilities
-- Color grading features
-- Enhanced error reporting
-- Unit test coverage
+This project is provided as-is. Please ensure you have proper licenses for Blender, FFmpeg, and any media assets you use with this engine.
