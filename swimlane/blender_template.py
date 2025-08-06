@@ -436,8 +436,8 @@ def create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map):
                     channel=effects_channel,
                     frame_start=int(strip_b.frame_start),
                     frame_end=int(strip_b.frame_start) + duration_frames,
-                    seq1=strip_a,
-                    seq2=strip_b
+                    input1=strip_a,
+                    input2=strip_b
                 )
             elif transition_type == 'wipe':
                 effect = vse.sequences.new_effect(
@@ -446,8 +446,8 @@ def create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map):
                     channel=effects_channel,
                     frame_start=int(strip_b.frame_start),
                     frame_end=int(strip_b.frame_start) + duration_frames,
-                    seq1=strip_a,
-                    seq2=strip_b
+                    input1=strip_a,
+                    input2=strip_b
                 )
                 # Configure wipe direction
                 direction = transition.get('direction', 'left_to_right')
@@ -467,8 +467,8 @@ def create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map):
                     channel=effects_channel,
                     frame_start=int(strip_b.frame_start),
                     frame_end=int(strip_b.frame_start) + duration_frames,
-                    seq1=strip_a,
-                    seq2=strip_b
+                    input1=strip_a,
+                    input2=strip_b
                 )
                 # For dissolve, animate the blend factor
                 effect.blend_alpha = 0.0
@@ -484,8 +484,8 @@ def create_cross_transitions(vse, sorted_tracks, fps, clip_strip_map):
                     channel=effects_channel,
                     frame_start=int(strip_b.frame_start),
                     frame_end=int(strip_b.frame_start) + duration_frames,
-                    seq1=strip_a,
-                    seq2=strip_b
+                    input1=strip_a,
+                    input2=strip_b
                 )
 
 def main():
