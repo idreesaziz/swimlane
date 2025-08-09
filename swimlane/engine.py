@@ -818,8 +818,11 @@ class SwimlaneEngine:
 
             # Now, after parsing, do final critical checks based on fully processed data
             audio_source_issues, video_source_issues = [], []
-            audio_source_ids = {c['source_id'] for t in self.swml_data.get('tracks', []) if t.get('type') in ['audio', 'audiovideo'] for c in t.get('clips', [])}
-            video_source_ids = {c['source_id'] for t in self.swml_data.get('tracks', []) if t.get('type', 'video') in ['video', 'audiovideo'] for c in t.get('clips', [])}
+            
+            # Separate pure audio/video tracks from audiovideo tracks
+            pure_audio_source_ids = {c['source_id'] for t in self.swml_data.get('tracks', []) if t.get('type') == 'audio' for c in t.get('clips', [])}
+            pure_video_source_ids = {c['source_id'] for t in self.swml_data.get('tracks', []) if t.get('type', 'video') == 'video' for c in t.get('clips', [])}
+            # audiovideo tracks are more flexible - they accept audio-only, video-only, or both
 
             for source in self.swml_data['sources']:
                 sid = source.get('id')
@@ -828,9 +831,12 @@ class SwimlaneEngine:
                 # Retrieve from cache, already probed earlier
                 source_info = self.source_info_cache.get(os.path.abspath(path))
 
-                if sid in audio_source_ids and (not source_info or not source_info.has_audio):
-                    audio_source_issues.append(f"'{sid}': {path} (has no audio stream but used in audio track)")
-                if sid in video_source_ids and (not source_info or not source_info.has_video):
+                # Pure audio tracks require audio stream
+                if sid in pure_audio_source_ids and (not source_info or not source_info.has_audio):
+                    audio_source_issues.append(f"'{sid}': {path} (has no audio stream but used in pure audio track)")
+                
+                # Pure video tracks require video stream (or valid image dimensions)
+                if sid in pure_video_source_ids and (not source_info or not source_info.has_video):
                     # An image used as a video source is fine if it has dimensions
                     if source_info and source_info.is_image and (source_info.width == 0 or source_info.height == 0):
                         video_source_issues.append(f"'{sid}': {path} (Image with no dimensions but used in video track)")
@@ -838,8 +844,8 @@ class SwimlaneEngine:
                         video_source_issues.append(f"'{sid}': {path} (Video with no video stream but used in video track)")
 
             # These are critical errors: cannot proceed if sources are fundamentally wrong for their use
-            if audio_source_issues: raise SwmlError("The following sources are used in audio tracks but lack an audio stream:\n" + "\n".join(audio_source_issues))
-            if video_source_issues: raise SwmlError("The following sources are used in video tracks but lack a video stream (or dimensions for images):\n" + "\n".join(video_source_issues))
+            if audio_source_issues: raise SwmlError("The following sources are used in pure audio tracks but lack an audio stream:\n" + "\n".join(audio_source_issues))
+            if video_source_issues: raise SwmlError("The following sources are used in pure video tracks but lack a video stream (or dimensions for images):\n" + "\n".join(video_source_issues))
 
 
             print("3. Generating Blender script...")
