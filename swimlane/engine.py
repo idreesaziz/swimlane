@@ -165,7 +165,7 @@ class SwimlaneEngine:
             return # Empty transform is valid
 
         # 1. Remove unsupported keys
-        allowed_transform_keys = {'size', 'position', 'anchor'}
+        allowed_transform_keys = {'size', 'position', 'anchor', 'effects'}
         keys_to_remove = [key for key in transform.keys() if key not in allowed_transform_keys]
         for key in keys_to_remove:
             self._warn(f"Unsupported transform property '{key}' in clip '{clip_id}' in track {track_id}. Ignoring and removing.")
@@ -191,10 +191,17 @@ class SwimlaneEngine:
                     self._warn(f"Transform 'size.scale' must be a list of two numbers in clip '{clip_id}' in track {track_id}. Ignoring 'scale' property.")
                     size.pop('scale')
                 else:
-                    # Clamp scale values to a positive minimum to avoid issues like division by zero or invisibility
-                    size['scale'] = [max(0.001, s) for s in scale] # Minimum scale of 0.001
-                    if any(s < 0.001 for s in scale):
-                        self._warn(f"Transform 'size.scale' in clip '{clip_id}' in track {track_id} contained non-positive values. Clamped to minimum 0.001.")
+                    # Allow negative scaling for flip effects, but prevent values too close to zero
+                    processed_scale = []
+                    for s in scale:
+                        if s >= 0:
+                            processed_scale.append(max(0.001, s))  # Positive: minimum 0.001
+                        else:
+                            processed_scale.append(min(-0.001, s))  # Negative: maximum -0.001
+                    
+                    size['scale'] = processed_scale
+                    if any(abs(s) < 0.001 for s in scale):
+                        self._warn(f"Transform 'size.scale' in clip '{clip_id}' in track {track_id} contained values too close to zero. Adjusted to maintain minimum absolute value 0.001.")
         
         # 3. Validate 'position' property
         if 'position' in transform:
@@ -248,6 +255,96 @@ class SwimlaneEngine:
                 if not (isinstance(cartesian, list) and len(cartesian) == 2 and all(isinstance(x, (int, float)) for x in cartesian)):
                     self._warn(f"Transform 'anchor.cartesian' must be a list of two numbers in clip '{clip_id}' in track {track_id}. Ignoring 'cartesian' property.")
                     anchor.pop('cartesian')
+
+        # 5. Validate 'effects' property
+        if 'effects' in transform:
+            self._validate_effects(transform['effects'], track_id, clip_id)
+
+    def _validate_effects(self, effects: Dict[str, Any], track_id: Any, clip_id: Any):
+        """
+        Validate effects object within transform.
+        """
+        if not isinstance(effects, dict):
+            raise SwmlError(f"Transform 'effects' must be an object in clip '{clip_id}' in track {track_id}.")
+
+        # Validate color effects
+        if 'color' in effects:
+            color = effects['color']
+            if not isinstance(color, dict):
+                self._warn(f"Transform 'effects.color' must be an object in clip '{clip_id}' in track {track_id}. Ignoring color effects.")
+                effects.pop('color')
+            else:
+                # Validate individual color properties
+                color_properties = ['brightness', 'contrast', 'saturation', 'gamma', 'hue', 'temperature', 'red_channel', 'green_channel', 'blue_channel']
+                for prop in list(color.keys()):
+                    if prop not in color_properties:
+                        self._warn(f"Unknown color effect '{prop}' in clip '{clip_id}' in track {track_id}. Ignoring.")
+                        color.pop(prop)
+                    elif not isinstance(color[prop], (int, float)):
+                        self._warn(f"Color effect '{prop}' must be a number in clip '{clip_id}' in track {track_id}. Ignoring.")
+                        color.pop(prop)
+                    else:
+                        # Clamp values to reasonable ranges
+                        if prop in ['brightness', 'contrast', 'saturation', 'gamma', 'red_channel', 'green_channel', 'blue_channel']:
+                            if color[prop] < 0:
+                                self._warn(f"Color effect '{prop}' value {color[prop]} is negative in clip '{clip_id}' in track {track_id}. Clamping to 0.")
+                                color[prop] = 0
+                            elif color[prop] > 5:
+                                self._warn(f"Color effect '{prop}' value {color[prop]} is very high in clip '{clip_id}' in track {track_id}. Clamping to 5.")
+                                color[prop] = 5
+                        elif prop == 'hue':
+                            # Hue can be negative but wrap it to -180 to 180 range
+                            color[prop] = ((color[prop] + 180) % 360) - 180
+                        elif prop == 'temperature':
+                            # Temperature typically ranges from -1 to 1
+                            if color[prop] < -1:
+                                self._warn(f"Color temperature {color[prop]} is very cold in clip '{clip_id}' in track {track_id}. Clamping to -1.")
+                                color[prop] = -1
+                            elif color[prop] > 1:
+                                self._warn(f"Color temperature {color[prop]} is very warm in clip '{clip_id}' in track {track_id}. Clamping to 1.")
+                                color[prop] = 1
+
+        # Validate LUT effects
+        if 'lut' in effects:
+            lut = effects['lut']
+            if not isinstance(lut, dict):
+                self._warn(f"Transform 'effects.lut' must be an object in clip '{clip_id}' in track {track_id}. Ignoring LUT effects.")
+                effects.pop('lut')
+            else:
+                valid_presets = ['warm', 'cool', 'vintage', 'cinema']
+                
+                if 'preset' in lut and 'file' in lut:
+                    self._warn(f"LUT effect in clip '{clip_id}' in track {track_id} specifies both 'preset' and 'file'. Using 'preset' and ignoring 'file'.")
+                    lut.pop('file')
+                
+                if 'preset' in lut:
+                    if not isinstance(lut['preset'], str) or lut['preset'] not in valid_presets:
+                        self._warn(f"LUT preset '{lut['preset']}' is invalid in clip '{clip_id}' in track {track_id}. Must be one of: {valid_presets}. Ignoring LUT effects.")
+                        effects.pop('lut')
+                        return
+                elif 'file' in lut:
+                    if not isinstance(lut['file'], str):
+                        self._warn(f"LUT file must be a string path in clip '{clip_id}' in track {track_id}. Ignoring LUT effects.")
+                        effects.pop('lut')
+                        return
+                else:
+                    self._warn(f"LUT effect in clip '{clip_id}' in track {track_id} must specify either 'preset' or 'file'. Ignoring LUT effects.")
+                    effects.pop('lut')
+                    return
+                
+                # Validate strength if present
+                if 'strength' in lut:
+                    if not isinstance(lut['strength'], (int, float)):
+                        self._warn(f"LUT strength must be a number in clip '{clip_id}' in track {track_id}. Using default strength 1.0.")
+                        lut.pop('strength')
+                    else:
+                        # Clamp strength between 0 and 1
+                        if lut['strength'] < 0:
+                            self._warn(f"LUT strength {lut['strength']} is negative in clip '{clip_id}' in track {track_id}. Clamping to 0.")
+                            lut['strength'] = 0
+                        elif lut['strength'] > 1:
+                            self._warn(f"LUT strength {lut['strength']} is greater than 1 in clip '{clip_id}' in track {track_id}. Clamping to 1.")
+                            lut['strength'] = 1
 
     def _validate_tracks_and_clips(self, data: Dict[str, Any]):
         """

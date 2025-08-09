@@ -1,0 +1,40 @@
+{
+  "composition": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "duration": 5,
+    "output_format": "mp4"
+  },
+  "sources": [
+    {
+      "id": "background",
+      "path": "examples/media/background.mp4"
+    }
+  ],
+  "tracks": [
+    {
+      "id": 1,
+      "type": "video",
+      "clips": [
+        {
+          "id": "test_clip",
+          "source_id": "background",
+          "start_time": 0,
+          "end_time": 5,
+          "source_start": 0,
+          "transform": {
+            "size": {
+              "scale": [-1.5, -0.8]
+            },
+            "effects": {
+              "color": {
+                "brightness": 1.3
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

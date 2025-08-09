@@ -23,7 +23,7 @@ SOURCES_DICT = {s['id']: s['path'] for s in SWML_DATA['sources']}
 
 def time_to_frame(t, fps):
     """Convert time in seconds to frame number (1-indexed for Blender)"""
-    return int(round(t * fps))
+    return max(1, int(round(t * fps)) + 1)
 
 def time_to_source_frame(t, fps):
     """Convert time to frame number for source media (0-indexed)"""
@@ -359,12 +359,183 @@ def apply_transform(vse, strip, clip, channel):
     center_y = top_left_y + final_h / 2
     
     # For simple transforms, apply directly to the strip
-    strip.transform.scale_x = final_w / source_w
-    strip.transform.scale_y = final_h / source_h
+    # Calculate scale factors
+    scale_factor_x = final_w / source_w
+    scale_factor_y = final_h / source_h
+    
+    # Detect flip requirements from negative scaling
+    flip_horizontal = scale_factor_x < 0
+    flip_vertical = scale_factor_y < 0
+    
+    # Apply absolute values for actual scaling
+    strip.transform.scale_x = abs(scale_factor_x)
+    strip.transform.scale_y = abs(scale_factor_y)
     strip.transform.offset_x = center_x - comp_w / 2
     strip.transform.offset_y = center_y - comp_h / 2
     strip.blend_type = 'ALPHA_OVER'
     
+    # Apply flip effects if negative scaling was detected
+    if flip_horizontal or flip_vertical:
+        print(f"DEBUG: Detected flip requirement from negative scaling: horizontal={flip_horizontal}, vertical={flip_vertical}")
+        if flip_horizontal:
+            strip.use_flip_x = True
+            print(f"DEBUG: Applied horizontal flip using use_flip_x: {strip.use_flip_x}")
+        if flip_vertical:
+            strip.use_flip_y = True
+            print(f"DEBUG: Applied vertical flip using use_flip_y: {strip.use_flip_y}")
+    
+    # Apply effects if present
+    effects = transform.get('effects', {})
+    if effects:
+        apply_effects(vse, strip, effects, channel)
+
+def apply_effects(vse, strip, effects, channel):
+    """Apply video effects to a strip."""
+    
+    # Apply color effects
+    if 'color' in effects:
+        apply_color_effects(strip, effects['color'])
+    
+    # Apply LUT effects
+    if 'lut' in effects:
+        apply_lut_effects(vse, strip, effects['lut'], channel)
+
+def apply_color_effects(strip, color_effects):
+    """Apply color adjustment effects using Blender modifiers."""
+    
+    # Brightness - adjust the strip's color multiplier
+    if 'brightness' in color_effects:
+        brightness = float(color_effects['brightness'])
+        # Clamp brightness to reasonable range
+        brightness = max(0.0, min(3.0, brightness))
+        if hasattr(strip, 'color'):
+            strip.color = (brightness, brightness, brightness)
+    
+    # Contrast - use Blender's color balance
+    if 'contrast' in color_effects:
+        contrast = float(color_effects['contrast'])
+        contrast = max(0.0, min(2.0, contrast))
+        if hasattr(strip, 'use_color_balance'):
+            strip.use_color_balance = True
+            if hasattr(strip, 'color_balance'):
+                # Adjust gamma for contrast (1.0 = normal, <1.0 = more contrast, >1.0 = less contrast)
+                gamma_val = 1.0 / contrast if contrast > 0 else 1.0
+                strip.color_balance.gamma = (gamma_val, gamma_val, gamma_val)
+    
+    # Saturation - use color balance HSV adjustments
+    if 'saturation' in color_effects:
+        saturation = float(color_effects['saturation'])
+        saturation = max(0.0, min(2.0, saturation))
+        if hasattr(strip, 'color_saturation'):
+            strip.color_saturation = saturation
+        elif hasattr(strip, 'use_color_balance'):
+            # Fallback method using color balance
+            strip.use_color_balance = True
+    
+    # Hue shift
+    if 'hue' in color_effects:
+        hue = float(color_effects['hue'])
+        # Hue is typically in range -180 to 180 degrees, normalize to 0-1
+        hue_normalized = (hue % 360) / 360.0
+        if hasattr(strip, 'color_hue'):
+            strip.color_hue = hue_normalized
+    
+    # Gamma correction
+    if 'gamma' in color_effects:
+        gamma = float(color_effects['gamma'])
+        gamma = max(0.1, min(3.0, gamma))
+        if hasattr(strip, 'use_color_balance'):
+            strip.use_color_balance = True
+            if hasattr(strip, 'color_balance'):
+                strip.color_balance.gamma = (gamma, gamma, gamma)
+    
+    # RGB channel adjustments
+    if 'rgb' in color_effects:
+        rgb = color_effects['rgb']
+        if isinstance(rgb, list) and len(rgb) == 3:
+            r, g, b = [max(0.0, min(2.0, float(c))) for c in rgb]
+            if hasattr(strip, 'color'):
+                strip.color = (r, g, b)
+    
+    print(f"DEBUG: Applied color effects: {color_effects}")
+
+def apply_lut_effects(vse, strip, lut_effects, channel):
+    """Apply LUT (Look-Up Table) effects."""
+    
+    if 'file' in lut_effects:
+        lut_file = lut_effects['file']
+        strength = lut_effects.get('strength', 1.0)
+        
+        try:
+            # Try to apply LUT using Blender's built-in color grading
+            # This requires the LUT file to be accessible
+            if hasattr(strip, 'use_color_balance'):
+                strip.use_color_balance = True
+                # Note: Full LUT support would require loading the actual LUT file
+                # and applying its color transformations. This is a placeholder.
+                print(f"DEBUG: Basic LUT file setup applied with strength {strength}")
+            
+        except Exception as e:
+            print(f"WARNING: Could not apply LUT effect: {e}")
+            print("NOTE: Full LUT support may require additional Blender addons or compositor setup")
+    
+    # Preset LUT effects (built-in color grading presets)
+    if 'preset' in lut_effects:
+        preset = lut_effects['preset'].lower()
+        strength = lut_effects.get('strength', 1.0)
+        
+        # Try direct color balance for movie/video strips
+        if hasattr(strip, 'use_color_balance'):
+            strip.use_color_balance = True
+            
+            if preset == 'warm':
+                # Warm color grading - boost reds/yellows
+                strip.color_balance.lift = (1.0 + 0.1 * strength, 1.0, 1.0 - 0.05 * strength)
+                strip.color_balance.gamma = (1.0 + 0.05 * strength, 1.0, 1.0 - 0.1 * strength)
+            elif preset == 'cool':
+                # Cool color grading - boost blues
+                strip.color_balance.lift = (1.0 - 0.05 * strength, 1.0, 1.0 + 0.1 * strength)
+                strip.color_balance.gamma = (1.0 - 0.1 * strength, 1.0, 1.0 + 0.05 * strength)
+            elif preset == 'vintage':
+                # Vintage look - desaturated, warm shadows
+                strip.color_balance.lift = (1.0 + 0.15 * strength, 1.0 + 0.1 * strength, 1.0 - 0.1 * strength)
+                strip.color_balance.gamma = (1.0, 1.0 + 0.05 * strength, 1.0 - 0.05 * strength)
+            elif preset == 'cinema':
+                # Cinematic look - teal and orange
+                strip.color_balance.lift = (1.0 + 0.1 * strength, 1.0 + 0.05 * strength, 1.0 - 0.15 * strength)
+                strip.color_balance.gain = (1.0 - 0.05 * strength, 1.0, 1.0 + 0.1 * strength)
+            
+            print(f"DEBUG: Applied preset LUT '{preset}' with strength {strength}")
+        
+        # For image strips, use modifiers approach
+        elif hasattr(strip, 'modifiers'):
+            import bpy
+            
+            # Add color balance modifier for image strips
+            modifier = strip.modifiers.new('ColorBalance', 'COLOR_BALANCE')
+            
+            if preset == 'warm':
+                # Warm color grading - boost reds/yellows
+                modifier.color_balance.lift = (1.0 + 0.1 * strength, 1.0, 1.0 - 0.05 * strength)
+                modifier.color_balance.gamma = (1.0 + 0.05 * strength, 1.0, 1.0 - 0.1 * strength)
+            elif preset == 'cool':
+                # Cool color grading - boost blues
+                modifier.color_balance.lift = (1.0 - 0.05 * strength, 1.0, 1.0 + 0.1 * strength)
+                modifier.color_balance.gamma = (1.0 - 0.1 * strength, 1.0, 1.0 + 0.05 * strength)
+            elif preset == 'vintage':
+                # Vintage look - desaturated, warm shadows
+                modifier.color_balance.lift = (1.0 + 0.15 * strength, 1.0 + 0.1 * strength, 1.0 - 0.1 * strength)
+                modifier.color_balance.gamma = (1.0, 1.0 + 0.05 * strength, 1.0 - 0.05 * strength)
+            elif preset == 'cinema':
+                # Cinematic look - teal and orange
+                modifier.color_balance.lift = (1.0 + 0.1 * strength, 1.0 + 0.05 * strength, 1.0 - 0.15 * strength)
+                modifier.color_balance.gain = (1.0 - 0.05 * strength, 1.0, 1.0 + 0.1 * strength)
+            
+            print(f"DEBUG: Applied preset LUT '{preset}' with strength {strength}")
+        
+        else:
+            print(f"WARNING: Strip type {type(strip)} does not support LUT effects")
+
 def apply_simple_transitions(vse, strip, clip_id, transitions, fps):
     """Apply fade in/out transitions to a single clip."""
     for transition in transitions:
