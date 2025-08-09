@@ -346,6 +346,31 @@ class SwimlaneEngine:
                             self._warn(f"LUT strength {lut['strength']} is greater than 1 in clip '{clip_id}' in track {track_id}. Clamping to 1.")
                             lut['strength'] = 1
 
+        # Validate rotation effects
+        if 'rotation' in effects:
+            rotation = effects['rotation']
+            if not isinstance(rotation, dict):
+                self._warn(f"Transform 'effects.rotation' must be an object in clip '{clip_id}' in track {track_id}. Ignoring rotation effects.")
+                effects.pop('rotation')
+            else:
+                # Validate angle property
+                if 'angle' not in rotation:
+                    self._warn(f"Rotation effect missing 'angle' property in clip '{clip_id}' in track {track_id}. Ignoring rotation effects.")
+                    effects.pop('rotation')
+                elif not isinstance(rotation['angle'], (int, float)):
+                    self._warn(f"Rotation angle must be a number in clip '{clip_id}' in track {track_id}. Ignoring rotation effects.")
+                    effects.pop('rotation')
+                else:
+                    # Convert angle to radians and normalize to 0-2π range
+                    import math
+                    angle_degrees = rotation['angle']
+                    # Normalize angle to 0-360 range
+                    angle_degrees = angle_degrees % 360
+                    # Convert to radians
+                    angle_radians = math.radians(angle_degrees)
+                    rotation['angle'] = angle_radians  # Store in radians for Blender
+                    rotation['angle_degrees'] = angle_degrees  # Keep original for reference
+
     def _validate_tracks_and_clips(self, data: Dict[str, Any]):
         """
         Validates tracks and clips, applies defaults, and performs coercions.

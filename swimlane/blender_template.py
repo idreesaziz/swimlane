@@ -396,6 +396,10 @@ def apply_effects(vse, strip, effects, channel):
     if 'color' in effects:
         apply_color_effects(strip, effects['color'])
     
+    # Apply rotation effects
+    if 'rotation' in effects:
+        apply_rotation_effects(strip, effects['rotation'])
+    
     # Apply LUT effects
     if 'lut' in effects:
         apply_lut_effects(vse, strip, effects['lut'], channel)
@@ -458,6 +462,26 @@ def apply_color_effects(strip, color_effects):
                 strip.color = (r, g, b)
     
     print(f"DEBUG: Applied color effects: {color_effects}")
+
+def apply_rotation_effects(strip, rotation_effects):
+    """Apply rotation effects to a strip using Blender's transform properties."""
+    
+    print(f"DEBUG: Applying rotation effects: {rotation_effects}")
+    
+    if 'angle' in rotation_effects:
+        angle_radians = rotation_effects['angle']  # Already converted to radians in validation
+        angle_degrees = rotation_effects.get('angle_degrees', 0)  # For debugging
+        
+        print(f"DEBUG: Setting rotation to {angle_degrees}° ({angle_radians:.3f} radians)")
+        
+        # Apply rotation using Blender VSE transform
+        if hasattr(strip, 'transform') and hasattr(strip.transform, 'rotation'):
+            strip.transform.rotation = angle_radians
+            print(f"DEBUG: Applied rotation: {angle_degrees}° (actual value: {strip.transform.rotation:.3f} radians)")
+        else:
+            print(f"DEBUG: Warning - Strip does not support rotation transform")
+    
+    print(f"DEBUG: Rotation effects applied successfully")
 
 def apply_lut_effects(vse, strip, lut_effects, channel):
     """Apply LUT (Look-Up Table) effects."""
