@@ -39,11 +39,12 @@ class SourceInfo(object):
 class SwimlaneEngine:
     DEFAULT_IMAGE_DURATION_SECONDS = 5.0
 
-    def __init__(self, swml_path: str, output_path: str, blender_executable: str = 'blender', preview_mode: bool = False):
+    def __init__(self, swml_path: str, output_path: str, blender_executable: str = 'blender', preview_mode: bool = False, threads: Optional[int] = None):
         self.swml_path = swml_path
         self.output_path = os.path.abspath(output_path)
         self.blender_executable = blender_executable
         self.preview_mode = preview_mode
+        self.threads = threads if threads is not None else 1  # Default to single-threaded
         self.swml_data = None
         self.source_info_cache: Dict[str, SourceInfo] = {} # Cache for ffprobe results
         self.converted_sources: Dict[str, str] = {} # Cache for framerate-converted sources
@@ -828,6 +829,7 @@ class SwimlaneEngine:
             script = script.replace("{quality}", output_settings['quality'])
             script = script.replace("{blender_preset}", output_settings['blender_preset'])
             script = script.replace("{blender_quality}", output_settings['blender_quality'])
+            script = script.replace("{threads}", str(self.threads))
             return script
         except Exception as e:
             raise SwmlError(f"Error formatting script template: {e}")
@@ -932,6 +934,7 @@ class SwimlaneEngine:
         """Main rendering function"""
         try:
             print("--- Swimlane Engine: Blender VSE Mode ---")
+            print(f"DEBUG: Threading configuration: {self.threads} threads")
             print(f"1. Parsing SWML file: {self.swml_path}")
             self.parse_swml() # This will populate self.swml_data and apply defaults/coercions
 

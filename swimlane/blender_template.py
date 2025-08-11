@@ -38,6 +38,16 @@ def setup_scene():
     scene.render.fps = comp['fps']
     scene.frame_end = time_to_frame(comp['duration'], comp['fps'])
     
+    # Configure threading
+    threads = {threads}
+    if threads > 1:
+        scene.render.threads_mode = 'FIXED'
+        scene.render.threads = threads
+        print(f"DEBUG: Blender threading configured: {threads} threads (FIXED mode)")
+    else:
+        scene.render.threads_mode = 'AUTO'
+        print(f"DEBUG: Blender threading configured: single-threaded (AUTO mode)")
+    
     # Ensure VSE exists BEFORE setting use_sequencer
     if not scene.sequence_editor:
         scene.sequence_editor_create()
