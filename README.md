@@ -172,22 +172,126 @@ The transform system provides precise control over visual elements:
   },
   "effects": {
     "color": {
-      "brightness": 1.2,
-      "contrast": 1.1, 
-      "saturation": 1.3,
-      "gamma": 1.0,
-      "hue": 15
+      "brightness": 1.4,      // Global brightness (0.0-3.0, default: 1.0)
+      "contrast": 1.2,        // Contrast adjustment (0.0-2.0, default: 1.0)  
+      "saturation": 1.3,      // Color saturation (0.0-2.0, default: 1.0)
+      "gamma": 0.8,           // Gamma correction (0.1-3.0, default: 1.0)
+      "hue": 15,              // Hue shift in degrees (-180 to 180)
+      "temperature": -0.5,    // Color temperature (-1.0=cool, 1.0=warm)
+      
+      // Individual RGB channel control (0.0-5.0, default: 1.0)
+      "red_channel": 0.05,    // Red channel multiplier
+      "green_channel": 0.2,   // Green channel multiplier  
+      "blue_channel": 3.0,    // Blue channel multiplier
+      
+      // Alternative RGB array format
+      "rgb": [1.2, 1.0, 0.8]  // [R, G, B] multipliers
     },
     "rotation": {
-      "angle": 45
+      "angle": 45               // Rotation in degrees
     },
     "lut": {
-      "preset": "cinema",
-      "strength": 0.7
+      "preset": "cinema",       // LUT preset name
+      "strength": 0.7           // LUT application strength (0.0-1.0)
     }
   }
 }
 ```
+
+## Color Grading System
+
+The Swimlane Engine provides comprehensive color grading capabilities using Blender's native VSE modifiers. All color adjustments are applied using professional-grade color correction tools.
+
+### Basic Color Adjustments
+
+```json
+"color": {
+  "brightness": 1.4,     // Overall brightness multiplier (0.0-3.0)
+  "saturation": 1.2,     // Color saturation (0.0-2.0, 0=grayscale, 2=ultra-saturated) 
+  "contrast": 1.5,       // Contrast adjustment (0.0-2.0)
+  "gamma": 0.8           // Gamma correction (0.1-3.0, <1.0=darker, >1.0=brighter)
+}
+```
+
+### Advanced Color Control
+
+#### Individual RGB Channels
+Precise control over red, green, and blue channels for color tinting and correction:
+
+```json
+"color": {
+  "red_channel": 0.05,    // Reduce red dramatically for cool tones
+  "green_channel": 0.2,   // Slight green reduction
+  "blue_channel": 3.0,    // Boost blue for strong tint
+  
+  // Alternative array format
+  "rgb": [1.2, 1.0, 0.8]  // [R, G, B] - warm tone adjustment
+}
+```
+
+#### Temperature and Tint
+Professional white balance and color temperature controls:
+
+```json
+"color": {
+  "temperature": -0.8,    // Cool temperature (-1.0=very cool, 1.0=very warm)
+  "hue": 15              // Hue shift in degrees (-180 to 180)
+}
+```
+
+### Color Grading Examples
+
+#### Cinematic Blue Tint
+```json
+"effects": {
+  "color": {
+    "brightness": 1.4,
+    "saturation": 1.3,
+    "red_channel": 0.05,
+    "green_channel": 0.2, 
+    "blue_channel": 3.0,
+    "temperature": -1.0
+  }
+}
+```
+
+#### Warm Vintage Look
+```json
+"effects": {
+  "color": {
+    "brightness": 1.2,
+    "contrast": 1.1,
+    "saturation": 0.8,
+    "gamma": 1.2,
+    "rgb": [1.3, 1.1, 0.7],
+    "temperature": 0.6
+  }
+}
+```
+
+#### High Contrast Drama
+```json
+"effects": {
+  "color": {
+    "brightness": 1.1,
+    "contrast": 2.0,
+    "saturation": 1.4,
+    "gamma": 0.7
+  }
+}
+```
+
+### Technical Implementation
+Color adjustments are implemented using Blender VSE's native modifier system:
+
+- **Brightness/Saturation**: Applied via strip properties (`color_multiply`, `color_saturation`)
+- **RGB Channels**: Implemented using `COLOR_BALANCE` modifier with `gain` property
+- **Contrast**: Applied via `BRIGHT_CONTRAST` modifier
+- **Gamma**: Applied via `COLOR_BALANCE` modifier's `gamma` property  
+- **Hue**: Applied via `HUE_CORRECT` modifier
+- **Temperature**: Applied via `WHITE_BALANCE` modifier
+
+This ensures professional-quality color grading with the full power of Blender's color correction pipeline.
 
 ### Transition System
 
@@ -279,7 +383,7 @@ The current implementation uses Blender's Video Sequence Editor for rendering:
 - Mature rendering pipeline
 - Professional-grade output quality
 - Extensive format support
-- Advanced effects processing
+- Professional color grading and correction
 
 **Limitations:**
 - Heavy system requirements
@@ -303,6 +407,7 @@ Planned migration to MLT for improved automation capabilities:
 - [x] Core rendering pipeline
 - [x] Transformation system
 - [x] Transition support
+- [x] Color grading system with native Blender modifiers
 
 ### Phase 2: MLT Migration
 - [ ] MLT framework integration

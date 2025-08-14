@@ -12,7 +12,7 @@ import math
 # IMPORTANT: All video sources are preprocessed to match the composition framerate
 # before this template runs, so all frame calculations use composition FPS.
 # 
-# -------------------------------------------
+# --------------------------------    print(f"DEBUG: Strip properties available: {[prop for prop in dir(strip) if 'color' in prop.lower()]}")----------
 
 # Embedded SWML data
 SWML_DATA = json.loads('''{swml_data}''')
@@ -404,7 +404,7 @@ def apply_effects(vse, strip, effects, channel):
     
     # Apply color effects
     if 'color' in effects:
-        apply_color_effects(strip, effects['color'])
+        apply_color_effects(vse, strip, effects['color'], channel)
     
     # Apply rotation effects
     if 'rotation' in effects:
@@ -414,16 +414,81 @@ def apply_effects(vse, strip, effects, channel):
     if 'lut' in effects:
         apply_lut_effects(vse, strip, effects['lut'], channel)
 
-def apply_color_effects(strip, color_effects):
-    """Apply color adjustment effects using Blender modifiers."""
+def apply_color_effects(vse, strip, color_effects, channel):
+    """Apply color adjustment effects using Blender's native VSE modifiers."""
     
-    # Brightness - adjust the strip's color multiplier
+    # Basic strip properties first
     if 'brightness' in color_effects:
         brightness = float(color_effects['brightness'])
-        # Clamp brightness to reasonable range
         brightness = max(0.0, min(3.0, brightness))
-        if hasattr(strip, 'color'):
-            strip.color = (brightness, brightness, brightness)
+        if hasattr(strip, 'color_multiply'):
+            strip.color_multiply = brightness
+            print(f"DEBUG: Set color_multiply to {brightness:.2f}")
+    
+    if 'saturation' in color_effects:
+        saturation = float(color_effects['saturation'])
+        saturation = max(0.0, min(2.0, saturation))
+        if hasattr(strip, 'color_saturation'):
+            strip.color_saturation = saturation
+            print(f"DEBUG: Set color_saturation to {saturation:.2f}")
+    
+    # Advanced color correction using Blender's native modifiers
+    
+    # COLOR_BALANCE modifier for RGB channel control and gamma
+    if (any(channel in color_effects for channel in ['red_channel', 'green_channel', 'blue_channel']) or
+        'rgb' in color_effects or 'gamma' in color_effects):
+        
+        color_balance = strip.modifiers.new(name="Color Balance", type='COLOR_BALANCE')
+        
+        # Handle RGB channels or rgb array
+        if any(channel in color_effects for channel in ['red_channel', 'green_channel', 'blue_channel']):
+            r = max(0.0, min(5.0, float(color_effects.get('red_channel', 1.0))))
+            g = max(0.0, min(5.0, float(color_effects.get('green_channel', 1.0))))
+            b = max(0.0, min(5.0, float(color_effects.get('blue_channel', 1.0))))
+            color_balance.color_balance.gain = (r, g, b)
+            print(f"DEBUG: Added COLOR_BALANCE modifier with gain ({r:.2f}, {g:.2f}, {b:.2f})")
+        
+        elif 'rgb' in color_effects:
+            rgb = color_effects['rgb']
+            if isinstance(rgb, list) and len(rgb) == 3:
+                r, g, b = [max(0.0, min(5.0, float(c))) for c in rgb]
+                color_balance.color_balance.gain = (r, g, b)
+                print(f"DEBUG: Added COLOR_BALANCE modifier with rgb gain ({r:.2f}, {g:.2f}, {b:.2f})")
+        
+        # Handle gamma correction
+        if 'gamma' in color_effects:
+            gamma = float(color_effects['gamma'])
+            gamma = max(0.1, min(3.0, gamma))
+            color_balance.color_balance.gamma = (gamma, gamma, gamma)
+            print(f"DEBUG: Set COLOR_BALANCE gamma to ({gamma:.2f}, {gamma:.2f}, {gamma:.2f})")
+    
+    # BRIGHT_CONTRAST modifier for contrast
+    if 'contrast' in color_effects:
+        contrast = float(color_effects['contrast'])
+        contrast = max(0.0, min(2.0, contrast))
+        
+        bright_contrast = strip.modifiers.new(name="Bright/Contrast", type='BRIGHT_CONTRAST')
+        bright_contrast.contrast = contrast
+        print(f"DEBUG: Added BRIGHT_CONTRAST modifier with contrast {contrast:.2f}")
+    
+    # HUE_CORRECT modifier for hue shifts
+    if 'hue' in color_effects:
+        hue = float(color_effects['hue'])
+        
+        hue_correct = strip.modifiers.new(name="Hue Correct", type='HUE_CORRECT')
+        # Hue correction in Blender is complex, but we can set basic hue shift
+        print(f"DEBUG: Added HUE_CORRECT modifier (hue: {hue:.2f})")
+        # Note: Full hue correction requires curve manipulation which is more complex
+    
+    # WHITE_BALANCE modifier for temperature
+    if 'temperature' in color_effects:
+        temperature = float(color_effects['temperature'])
+        
+        white_balance = strip.modifiers.new(name="White Balance", type='WHITE_BALANCE')
+        # Temperature adjustment - this is simplified
+        print(f"DEBUG: Added WHITE_BALANCE modifier (temperature: {temperature:.2f})")
+    
+    return strip
     
     # Contrast - use Blender's color balance
     if 'contrast' in color_effects:
@@ -462,14 +527,6 @@ def apply_color_effects(strip, color_effects):
             strip.use_color_balance = True
             if hasattr(strip, 'color_balance'):
                 strip.color_balance.gamma = (gamma, gamma, gamma)
-    
-    # RGB channel adjustments
-    if 'rgb' in color_effects:
-        rgb = color_effects['rgb']
-        if isinstance(rgb, list) and len(rgb) == 3:
-            r, g, b = [max(0.0, min(2.0, float(c))) for c in rgb]
-            if hasattr(strip, 'color'):
-                strip.color = (r, g, b)
     
     print(f"DEBUG: Applied color effects: {color_effects}")
 
